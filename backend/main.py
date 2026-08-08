@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from db.database import init_db
-from routers import context, insights, meetings, ws
+from routers import auth, context, insights, meetings, projects, ws
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -46,17 +46,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:5174",
-        "http://127.0.0.1:5175",
-    ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_credentials=True,
+    allow_origins=["*"],          # Dev: allow all origins — tighten before production
+    allow_credentials=False,      # Must be False when allow_origins=["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -80,6 +71,8 @@ async def on_startup():
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 
+app.include_router(auth.router)
+app.include_router(projects.router)
 app.include_router(meetings.router)
 app.include_router(context.router)
 app.include_router(insights.router)

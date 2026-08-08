@@ -3,16 +3,16 @@
  *
  * Shows full detail for one meeting:
  *  • Live processing pipeline (WebSocket) while status != done
- *  • Tabbed view: Transcript | Topics | Action Items | Decisions
- *  • Speaker colour coding across transcript
+ *  • Tabbed view: Transcript | Topics | Action Items | Decisions | Revision History
+ *  • Inline Transcript Segment Editing & Audit Log Tracking
  */
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader, RefreshCw, MessageSquare, Tag,
-  CheckSquare, Gavel, User, Clock, RepeatIcon, AlertTriangle,
+  CheckSquare, Gavel, User, Clock, RepeatIcon, AlertTriangle, Edit3, Check, X, History
 } from 'lucide-react';
-import { getMeeting, getTranscript, getContext, patchActionItem } from '../api';
+import { getMeeting, getTranscript, getContext, patchActionItem, editTranscriptSegment, getTranscriptHistory } from '../api';
 import { useStatusSocket } from '../hooks/useStatusSocket';
 import StatusBadge from '../components/StatusBadge';
 import UrgencyBadge from '../components/UrgencyBadge';
@@ -33,7 +33,6 @@ function fmtTime(secs) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
-// 8 distinct colours for speaker labels
 const SPEAKER_COLORS = [
   'text-blue-300   bg-blue-500/10   border-blue-500/20',
   'text-purple-300 bg-purple-500/10 border-purple-500/20',
@@ -47,14 +46,36 @@ const SPEAKER_COLORS = [
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function TranscriptTab({ segments }) {
-  // Build speaker → colour index map
+function TranscriptTab({ meetingId, segments, onSegmentUpdated }) {
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const speakerMap = {};
   let colIdx = 0;
   segments.forEach((s) => {
     const lbl = s.speaker?.label || 'SPEAKER_00';
     if (!(lbl in speakerMap)) speakerMap[lbl] = colIdx++ % SPEAKER_COLORS.length;
   });
+
+  const handleStartEdit = (seg) => {
+    setEditingId(seg.id);
+    setEditText(seg.text);
+  };
+
+  const handleSaveEdit = async (segId) => {
+    if (!editText.trim()) return;
+    setSaving(true);
+    try {
+      const { data } = await editTranscriptSegment(meetingId, segId, editText.trim());
+      onSegmentUpdated(data);
+      setEditingId(null);
+    } catch (err) {
+      alert('Failed to edit segment');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!segments.length) {
     return (
@@ -65,25 +86,59 @@ function TranscriptTab({ segments }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {segments.map((seg) => {
         const lbl = seg.speaker?.label || 'SPEAKER_00';
         const name = seg.speaker?.name || lbl;
         const colorCls = SPEAKER_COLORS[speakerMap[lbl]];
+        const isEditing = editingId === seg.id;
+
         return (
-          <div key={seg.id} className="flex gap-3 group animate-fade-in">
-            {/* Timestamp */}
+          <div key={seg.id} className="glass p-3 rounded-xl border border-white/5 flex gap-3 group animate-fade-in items-start">
             <span className="text-white/20 text-xs font-mono pt-1 w-10 shrink-0">
               {fmtTime(seg.start_time)}
             </span>
 
-            {/* Speaker pill */}
             <span className={`badge ${colorCls} shrink-0 self-start mt-0.5 text-[10px]`}>
               {name}
             </span>
 
-            {/* Text */}
-            <p className="text-white/80 text-sm leading-relaxed">{seg.text}</p>
+            {isEditing ? (
+              <div className="flex-1 space-y-2">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="input text-xs w-full resize-none py-1.5"
+                  rows={2}
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setEditingId(null)}
+                    className="px-2.5 py-1 rounded text-xs text-white/50 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleSaveEdit(seg.id)}
+                    disabled={saving}
+                    className="btn-primary text-xs py-1 px-3 gap-1"
+                  >
+                    <Check size={12} /> {saving ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex items-start justify-between gap-3">
+                <p className="text-white/80 text-sm leading-relaxed">{seg.text}</p>
+                <button
+                  onClick={() => handleStartEdit(seg)}
+                  className="opacity-0 group-hover:opacity-100 text-white/30 hover:text-brand-300 p-1 rounded transition-all"
+                  title="Edit segment text"
+                >
+                  <Edit3 size={14} />
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
@@ -91,10 +146,55 @@ function TranscriptTab({ segments }) {
   );
 }
 
-function TopicsTab({ topics }) {
-  if (!topics?.length) {
-    return <EmptyTab text="No topics extracted yet." />;
+function HistoryTab({ meetingId }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getTranscriptHistory(meetingId)
+      .then(({ data }) => setHistory(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [meetingId]);
+
+  if (loading) {
+    return <div className="p-8 text-center text-white/30 text-xs">Loading edit history...</div>;
   }
+
+  if (!history.length) {
+    return (
+      <div className="glass p-10 text-center text-white/30 text-sm">
+        No edits have been made to this transcript yet. Edit any segment above to record revision history.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {history.map((h) => (
+        <div key={h.id} className="glass p-4 rounded-xl border border-white/10 space-y-2 text-xs">
+          <div className="flex items-center justify-between text-white/40">
+            <span>Edited by <strong className="text-white/70">{h.edited_by || 'User'}</strong> • {h.speaker_name}</span>
+            <span>{new Date(h.edited_at).toLocaleString()}</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-300">
+              <span className="text-[10px] uppercase font-bold tracking-wider block text-red-400 mb-0.5">Original / Before</span>
+              {h.old_text}
+            </div>
+            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300">
+              <span className="text-[10px] uppercase font-bold tracking-wider block text-emerald-400 mb-0.5">Revised / After</span>
+              {h.new_text}
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TopicsTab({ topics }) {
+  if (!topics?.length) return <EmptyTab text="No topics extracted yet." />;
   return (
     <div className="space-y-3">
       {topics.map((t) => (
@@ -128,16 +228,13 @@ function ActionItemsTab({ items, onToggle }) {
       {items.map((item) => (
         <div
           key={item.id}
-          className={`card p-4 flex items-start gap-3 animate-fade-in transition-opacity
-            ${item.resolved ? 'opacity-50' : ''}`}
+          className={`card p-4 flex items-start gap-3 animate-fade-in transition-opacity ${item.resolved ? 'opacity-50' : ''}`}
         >
           <button
             onClick={() => onToggle(item)}
-            className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0
-              transition-all duration-200
-              ${item.resolved
-                ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400'
-                : 'border-white/20 hover:border-brand-400'}`}
+            className={`mt-0.5 w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-all ${
+              item.resolved ? 'border-emerald-500 bg-emerald-500/20 text-emerald-400' : 'border-white/20 hover:border-brand-400'
+            }`}
           >
             {item.resolved && <span className="text-[10px]">✓</span>}
           </button>
@@ -182,43 +279,36 @@ function DecisionsTab({ decisions }) {
 }
 
 function EmptyTab({ text }) {
-  return (
-    <div className="glass p-10 text-center text-white/30 text-sm">{text}</div>
-  );
+  return <div className="glass p-10 text-center text-white/30 text-sm">{text}</div>;
 }
 
-// ── Tabs config ───────────────────────────────────────────────────────────────
-
 const TABS = [
-  { key: 'transcript', label: 'Transcript',   icon: MessageSquare },
-  { key: 'topics',     label: 'Topics',        icon: Tag           },
-  { key: 'actions',    label: 'Action Items',  icon: CheckSquare   },
-  { key: 'decisions',  label: 'Decisions',     icon: Gavel         },
+  { key: 'transcript', label: 'Transcript',        icon: MessageSquare },
+  { key: 'history',    label: 'Revision History', icon: History       },
+  { key: 'topics',     label: 'Topics',            icon: Tag           },
+  { key: 'actions',    label: 'Action Items',      icon: CheckSquare   },
+  { key: 'decisions',  label: 'Decisions',         icon: Gavel         },
 ];
 
-// ── Main Page ─────────────────────────────────────────────────────────────────
-
 export default function MeetingDetailPage() {
-  const { id }     = useParams();
-  const navigate   = useNavigate();
+  const { id }   = useParams();
+  const navigate = useNavigate();
 
-  const [meeting,   setMeeting]   = useState(null);
-  const [segments,  setSegments]  = useState([]);
-  const [context,   setContext]   = useState(null);
-  const [wsStatus,  setWsStatus]  = useState(null);
-  const [tab,       setTab]       = useState('transcript');
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
+  const [meeting,  setMeeting]  = useState(null);
+  const [segments, setSegments] = useState([]);
+  const [context,  setContext]  = useState(null);
+  const [wsStatus, setWsStatus] = useState(null);
+  const [tab,      setTab]      = useState('transcript');
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
 
-  // Track processing via WebSocket while not done
   useStatusSocket(
     meeting && meeting.status !== 'done' ? id : null,
     (event) => {
       if (event.status === 'ping') return;
       setWsStatus(event);
-      // Reload data when pipeline finishes
       if (event.status === 'done') loadAll();
-    },
+    }
   );
 
   const loadAll = async () => {
@@ -231,9 +321,7 @@ export default function MeetingDetailPage() {
         try {
           const cRes = await getContext(id);
           setContext(cRes.data);
-        } catch {
-          // Context may not be ready yet — not fatal
-        }
+        } catch { /* ignore */ }
       }
     } catch {
       setError('Meeting not found or backend unavailable.');
@@ -244,30 +332,25 @@ export default function MeetingDetailPage() {
 
   useEffect(() => { loadAll(); }, [id]);
 
+  const handleSegmentUpdated = (updatedSeg) => {
+    setSegments((prev) => prev.map((s) => (s.id === updatedSeg.id ? updatedSeg : s)));
+  };
+
   const handleToggleAction = async (item) => {
-    // Optimistic update
     setContext((prev) => ({
       ...prev,
-      action_items: prev.action_items.map((a) =>
-        a.id === item.id ? { ...a, resolved: !a.resolved } : a
-      ),
+      action_items: prev.action_items.map((a) => (a.id === item.id ? { ...a, resolved: !a.resolved } : a)),
     }));
     try {
       await patchActionItem(item.id, { resolved: !item.resolved });
     } catch {
-      // Revert on failure
       setContext((prev) => ({
         ...prev,
-        action_items: prev.action_items.map((a) =>
-          a.id === item.id ? { ...a, resolved: item.resolved } : a
-        ),
+        action_items: prev.action_items.map((a) => (a.id === item.id ? { ...a, resolved: item.resolved } : a)),
       }));
     }
   };
 
-  const isProcessing = meeting && !['done', 'error'].includes(meeting.status);
-
-  // ── Render ──────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh] text-white/30 gap-2">
@@ -290,12 +373,7 @@ export default function MeetingDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto py-10 px-4 animate-slide-up">
-
-      {/* Back + header */}
-      <button
-        onClick={() => navigate('/meetings')}
-        className="btn-secondary mb-6 text-xs"
-      >
+      <button onClick={() => navigate('/meetings')} className="btn-secondary mb-6 text-xs">
         <ArrowLeft size={14} /> All Meetings
       </button>
 
@@ -312,66 +390,31 @@ export default function MeetingDetailPage() {
         </div>
       </div>
 
-      {/* Stats row */}
-      {context && (
-        <div className="grid grid-cols-3 gap-3 mb-6">
-          {[
-            { label: 'Topics',       val: context.topics.length,       color: 'text-brand-400' },
-            { label: 'Action Items', val: context.action_items.length, color: 'text-amber-400' },
-            { label: 'Decisions',    val: context.decisions.length,    color: 'text-purple-400' },
-          ].map(({ label, val, color }) => (
-            <div key={label} className="card p-4 text-center">
-              <p className={`text-2xl font-bold ${color}`}>{val}</p>
-              <p className="text-white/30 text-xs mt-0.5">{label}</p>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Processing pipeline (while running) */}
-      {isProcessing && (
-        <div className="mb-6">
-          <ProcessingStatus
-            status={wsStatus?.status || meeting.status}
-            message={wsStatus?.message}
-          />
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="flex gap-1 mb-5 bg-surface-50 rounded-xl p-1 border border-white/5">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all duration-200
-              ${tab === key
-                ? 'bg-brand-600/20 text-brand-300 shadow'
-                : 'text-white/30 hover:text-white/60'}`}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-all ${
+              tab === key ? 'bg-brand-600/20 text-brand-300 shadow' : 'text-white/30 hover:text-white/60'
+            }`}
           >
             <Icon size={13} />
             <span className="hidden sm:inline">{label}</span>
-            {/* Count pills */}
-            {key === 'actions' && context && (
-              <span className="ml-1 bg-amber-500/20 text-amber-300 text-[9px] px-1.5 py-0.5 rounded-full">
-                {context.action_items.filter((a) => !a.resolved).length}
-              </span>
-            )}
           </button>
         ))}
       </div>
 
-      {/* Tab panels */}
+      {/* Tab Content */}
       <div>
-        {tab === 'transcript' && <TranscriptTab segments={segments} />}
-        {tab === 'topics'     && <TopicsTab topics={context?.topics} />}
-        {tab === 'actions'    && (
-          <ActionItemsTab
-            items={context?.action_items}
-            onToggle={handleToggleAction}
-          />
+        {tab === 'transcript' && (
+          <TranscriptTab meetingId={id} segments={segments} onSegmentUpdated={handleSegmentUpdated} />
         )}
-        {tab === 'decisions'  && <DecisionsTab decisions={context?.decisions} />}
+        {tab === 'history'   && <HistoryTab meetingId={id} />}
+        {tab === 'topics'    && <TopicsTab topics={context?.topics} />}
+        {tab === 'actions'   && <ActionItemsTab items={context?.action_items} onToggle={handleToggleAction} />}
+        {tab === 'decisions' && <DecisionsTab decisions={context?.decisions} />}
       </div>
     </div>
   );
