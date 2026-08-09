@@ -75,6 +75,7 @@ async def upload_meeting(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(...),
+    summary_type: Optional[str] = Form("balanced"),
     project_id: Optional[str] = Form(None),
     new_project_name: Optional[str] = Form(None),
     new_project_company: Optional[str] = Form(None),
@@ -84,7 +85,7 @@ async def upload_meeting(
 ):
     """
     Accept a multipart audio/video file, create a Meeting record, optionally link
-    to an existing or new Project workspace, and kick off background ingestion.
+    to an existing or new Project workspace, set summary depth, and kick off background ingestion.
     """
     assigned_project_id = project_id
 
@@ -108,6 +109,7 @@ async def upload_meeting(
         id=str(uuid.uuid4()),
         title=title,
         status="queued",
+        summary_type=summary_type or "balanced",
         project_id=assigned_project_id,
         user_id=current_user.id if current_user else None,
     )

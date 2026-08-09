@@ -203,6 +203,15 @@ def update_action_item(db: Session, item_id: str, data: ActionItemUpdate) -> Opt
     return item
 
 
+def delete_action_item(db: Session, item_id: str) -> bool:
+    item = get_action_item(db, item_id)
+    if item:
+        db.delete(item)
+        db.commit()
+        return True
+    return False
+
+
 # ── Decision ──────────────────────────────────────────────────────────────────
 
 def create_decision(db: Session, data: DecisionCreate) -> Decision:
@@ -214,6 +223,15 @@ def create_decision(db: Session, data: DecisionCreate) -> Decision:
     db.commit()
     db.refresh(decision)
     return decision
+
+
+def delete_decision(db: Session, decision_id: str) -> bool:
+    decision = db.query(Decision).filter(Decision.id == decision_id).first()
+    if decision:
+        db.delete(decision)
+        db.commit()
+        return True
+    return False
 
 
 # ── Report ────────────────────────────────────────────────────────────────────

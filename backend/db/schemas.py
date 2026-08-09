@@ -62,6 +62,7 @@ class MeetingOut(BaseModel):
     date: datetime
     status: str
     audio_path: Optional[str] = None
+    summary_type: str = "balanced"
 
 
 class MeetingDetail(MeetingOut):
@@ -136,6 +137,8 @@ class ContextEntryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: str
     meeting_id: str
+    summary: Optional[str] = None
+    summary_type: Optional[str] = None
     topics: List[TopicOut] = []
     action_items: List[ActionItemOut] = []
     decisions: List[DecisionOut] = []

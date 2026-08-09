@@ -10,9 +10,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckSquare, RefreshCw, Loader, AlertTriangle,
-  User, ExternalLink, Filter,
+  User, ExternalLink, Filter, Trash2,
 } from 'lucide-react';
-import { getOpenActionItems, patchActionItem } from '../api';
+import { getOpenActionItems, patchActionItem, deleteActionItem } from '../api';
 import UrgencyBadge from '../components/UrgencyBadge';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -81,6 +81,15 @@ export default function ActionItemsPage() {
       );
     } finally {
       setToggling((s) => { const n = new Set(s); n.delete(item.id); return n; });
+    }
+  };
+
+  const handleDelete = async (itemId) => {
+    try {
+      await deleteActionItem(itemId);
+      setItems((prev) => prev.filter((a) => a.id !== itemId));
+    } catch {
+      /* ignore */
     }
   };
 
@@ -180,7 +189,7 @@ export default function ActionItemsPage() {
           {filtered.map((item) => (
             <li
               key={item.id}
-              className={`card p-4 flex items-start gap-3 animate-fade-in transition-opacity duration-300
+              className={`card p-4 flex items-start gap-3 animate-fade-in transition-opacity duration-300 relative group
                 ${item.resolved ? 'opacity-40' : ''}`}
             >
               {/* Toggle button */}
@@ -202,7 +211,7 @@ export default function ActionItemsPage() {
               </button>
 
               {/* Content */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 pr-8">
                 <p className={`text-sm leading-relaxed ${item.resolved ? 'line-through text-white/30' : 'text-white/85'}`}>
                   {item.description}
                 </p>
@@ -216,11 +225,7 @@ export default function ActionItemsPage() {
                   {/* Link to meeting */}
                   {item.context_id && (
                     <button
-                      onClick={() => {
-                        // Navigate to the meeting that owns this context
-                        // We navigate to meetings list for now; deep link added in Phase 5
-                        navigate('/meetings');
-                      }}
+                      onClick={() => navigate('/meetings')}
                       className="text-brand-400/50 hover:text-brand-400 text-xs flex items-center gap-1 transition-colors"
                     >
                       <ExternalLink size={10} /> View meeting
@@ -228,6 +233,15 @@ export default function ActionItemsPage() {
                   )}
                 </div>
               </div>
+
+              {/* Delete item */}
+              <button
+                onClick={() => handleDelete(item.id)}
+                className="absolute top-4 right-4 text-white/20 hover:text-red-400 transition-colors p-1 rounded-lg hover:bg-red-500/10"
+                title="Delete Action Item"
+              >
+                <Trash2 size={14} />
+              </button>
             </li>
           ))}
         </ul>

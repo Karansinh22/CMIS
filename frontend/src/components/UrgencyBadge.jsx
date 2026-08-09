@@ -1,12 +1,15 @@
 /**
- * UrgencyBadge.jsx — Renders urgency (low / medium / high) as a colour-coded badge.
+ * UrgencyBadge.jsx — Renders urgency level as a colour-coded badge.
+ * Supports: critical | high | medium | low
  */
 export default function UrgencyBadge({ urgency }) {
   const map = {
-    high:   { label: '⚡ High',   cls: 'badge-red'    },
-    medium: { label: '⚠ Medium', cls: 'badge-yellow'  },
-    low:    { label: '· Low',    cls: 'badge-gray'    },
+    critical: { label: '🔥 Critical', cls: 'badge-red animate-pulse'  },
+    high:     { label: '⚡ High',     cls: 'badge-red'                 },
+    medium:   { label: '⚠ Medium',   cls: 'badge-yellow'              },
+    low:      { label: '· Low',      cls: 'badge-gray'                },
   };
-  const { label, cls } = map[urgency] || map.low;
+  const key = (urgency || 'low').toLowerCase();
+  const { label, cls } = map[key] || map.low;
   return <span className={cls}>{label}</span>;
 }

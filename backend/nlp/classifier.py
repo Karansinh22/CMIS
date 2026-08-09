@@ -1,7 +1,12 @@
 """
-classifier.py — Classifies transcript segments as action_item, decision, or general.
+nlp/classifier.py — Segment classifier for action_item, decision, or general.
 
-Stage 1 (default): Rule-based keyword + regex patterns.
+Stage 1 (always active): Multi-signal rule-based classification with:
+  - Weighted keyword/phrase pattern matching
+  - Linguistic cue extraction (modal verbs, deontic language)
+  - Negation awareness
+  - Context-sensitive tie-breaking
+
 Stage 2 (optional): scikit-learn logistic regression on TF-IDF features.
                     Activated when a trained model file exists at MODEL_PATH.
 """
@@ -22,34 +27,89 @@ SegmentType = Literal["action_item", "decision", "general"]
 
 MODEL_PATH = Path(__file__).parent / "classifier_model.pkl"
 
-# ── Rule-based patterns ───────────────────────────────────────────────────────
+# ── Action-item patterns (weighted) ──────────────────────────────────────────
 
-# Action-item indicators
 _ACTION_PATTERNS = [
-    re.compile(r"\b(will|shall|let'?s|gonna|going to)\b", re.IGNORECASE),
-    re.compile(r"\bI'?ll\b", re.IGNORECASE),
-    re.compile(r"\b(action|task|todo|to-do|follow[\s-]?up)\b", re.IGNORECASE),
-    re.compile(r"\b(need to|must|have to|should)\b", re.IGNORECASE),
-    re.compile(r"\bby (monday|tuesday|wednesday|thursday|friday|saturday|sunday|tomorrow|next week|end of)\b", re.IGNORECASE),
-    re.compile(r"\b(assign|responsible|owner|in charge)\b", re.IGNORECASE),
+    # Strong deontic / commitment markers
+    (re.compile(r"\b(I'?ll|I will|I am going to|I need to|I must|I should)\b", re.IGNORECASE), 3),
+    (re.compile(r"\b(we'?ll|we will|we are going to|we need to|we must)\b", re.IGNORECASE), 2),
+    # Explicit task/assignment language
+    (re.compile(r"\b(assign(ed)?|responsible for|in charge of|owner|point of contact)\b", re.IGNORECASE), 3),
+    (re.compile(r"\b(action item|follow[- ]?up|todo|to-do|next step|task)\b", re.IGNORECASE), 4),
+    # Deadline language
+    (re.compile(r"\b(by (monday|tuesday|wednesday|thursday|friday|saturday|sunday|eod|end of (day|week|month)|tomorrow|next week|this friday))\b", re.IGNORECASE), 3),
+    (re.compile(r"\b(before (the|next) (meeting|sprint|release|deadline|review))\b", re.IGNORECASE), 3),
+    (re.compile(r"\b(due (by|on|date)|deadline (is|on))\b", re.IGNORECASE), 2),
+    # Verb-based obligation
+    (re.compile(r"\b(needs? to|have to|has to|must|shall|ought to|required to|supposed to)\b", re.IGNORECASE), 2),
+    (re.compile(r"\b(going to|going to be|plan(s)? to|intend(s)? to|aim(s)? to)\b", re.IGNORECASE), 1),
+    # Person + verb patterns: "Karan will submit..."
+    (re.compile(r"\b([A-Z][a-z]+)\s+(will|shall|must|needs? to|is going to|has to)\b"), 3),
+    # Review/prepare/submit/send verbs
+    (re.compile(r"\b(prepare|submit|send|share|complete|finish|update|review|check|confirm|schedule|set up|draft|write|test|deploy|implement|create|build|design|document|present|research|investigate|analyse|analyze|validate|coordinate|communicate|notify|escalate|migrate|fix|resolve)\b", re.IGNORECASE), 1),
 ]
 
-# Decision indicators
+# ── Decision patterns (weighted) ──────────────────────────────────────────────
+
 _DECISION_PATTERNS = [
-    re.compile(r"\b(decided|decision|agreed|confirmed|resolved|approved|finalized)\b", re.IGNORECASE),
-    re.compile(r"\bwe (will|are going to|have decided|agreed)\b", re.IGNORECASE),
-    re.compile(r"\b(conclusion|outcome|ruling|voted|consensus)\b", re.IGNORECASE),
-    re.compile(r"\b(it was (decided|agreed|resolved))\b", re.IGNORECASE),
+    # Explicit decision markers
+    (re.compile(r"\b(decided|decision|has been decided|have decided|reached a decision)\b", re.IGNORECASE), 4),
+    (re.compile(r"\b(agreed|agreement|reached agreement|are in agreement)\b", re.IGNORECASE), 4),
+    (re.compile(r"\b(confirmed|confirmation|finalized|finalised|approved|approval|signed off|signed-off)\b", re.IGNORECASE), 3),
+    (re.compile(r"\b(resolved|resolution|settled|concluded|voted|consensus|ruling)\b", re.IGNORECASE), 3),
+    # Passive constructions
+    (re.compile(r"\b(it (has been|was) (decided|agreed|resolved|confirmed|approved))\b", re.IGNORECASE), 5),
+    (re.compile(r"\b(we (have )?(decided|agreed|confirmed|resolved|concluded|approved))\b", re.IGNORECASE), 4),
+    # Going-forward / policy language
+    (re.compile(r"\b(going forward|from now on|as of (today|now)|henceforth|the policy is|our approach will be)\b", re.IGNORECASE), 3),
+    (re.compile(r"\b(will (be|use|adopt|implement|follow|proceed|continue|move))\b", re.IGNORECASE), 1),
+    # Outcome / conclusion language
+    (re.compile(r"\b(outcome|conclusion|result(ed in)?|end (result|state)|final(ly)? decided|the choice is)\b", re.IGNORECASE), 3),
 ]
+
+# ── Negation detector ─────────────────────────────────────────────────────────
+
+_NEGATION_RE = re.compile(
+    r"\b(not|no|never|neither|nor|don'?t|doesn'?t|didn'?t|won'?t|can'?t|haven'?t|hadn'?t|isn'?t|aren'?t|wasn'?t|weren'?t)\b",
+    re.IGNORECASE,
+)
+
+_QUESTION_RE = re.compile(r"\?\s*$")
+
+
+def _weighted_score(text: str, patterns: list) -> float:
+    """Sum weighted pattern matches."""
+    return sum(weight for pat, weight in patterns if pat.search(text))
+
+
+def _has_negation(text: str) -> bool:
+    return bool(_NEGATION_RE.search(text))
+
+
+def _is_question(text: str) -> bool:
+    return bool(_QUESTION_RE.search(text))
 
 
 def _rule_based_classify(text: str) -> SegmentType:
-    action_score = sum(bool(p.search(text)) for p in _ACTION_PATTERNS)
-    decision_score = sum(bool(p.search(text)) for p in _DECISION_PATTERNS)
+    """Multi-signal weighted rule-based classification."""
+    # Questions are almost always general
+    if _is_question(text):
+        return "general"
 
-    if decision_score > 0 and decision_score >= action_score:
+    action_score = _weighted_score(text, _ACTION_PATTERNS)
+    decision_score = _weighted_score(text, _DECISION_PATTERNS)
+
+    # Negation reduces the dominant score
+    if _has_negation(text):
+        if decision_score > action_score:
+            decision_score = max(0, decision_score - 2)
+        else:
+            action_score = max(0, action_score - 1)
+
+    # Classification with minimum score thresholds to avoid noise
+    if decision_score >= 3 and decision_score >= action_score:
         return "decision"
-    if action_score > 0:
+    if action_score >= 2:
         return "action_item"
     return "general"
 
@@ -74,17 +134,14 @@ def _try_load_ml_model():
             logger.warning("Could not load ML classifier: %s. Using rule-based.", exc)
             _ml_model = None
     else:
-        logger.info("No ML classifier model found at %s — using rule-based classifier.", MODEL_PATH)
+        logger.info("No ML classifier found at %s — using weighted rule-based classifier.", MODEL_PATH)
     return _ml_model
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def classify(text: str) -> SegmentType:
-    """
-    Classify a single segment of text.
-    Returns "action_item", "decision", or "general".
-    """
+    """Classify a single segment. Returns 'action_item', 'decision', or 'general'."""
     model = _try_load_ml_model()
     if model is not None:
         try:
@@ -98,7 +155,7 @@ def classify(text: str) -> SegmentType:
 
 
 def classify_batch(texts: List[str]) -> List[SegmentType]:
-    """Classify a list of texts. More efficient when using the ML model."""
+    """Classify a list of texts, preferring ML model when available."""
     model = _try_load_ml_model()
     if model is not None:
         try:
@@ -113,13 +170,7 @@ def classify_batch(texts: List[str]) -> List[SegmentType]:
 
 
 def train_and_save(texts: List[str], labels: List[str]) -> None:
-    """
-    Train a TF-IDF + Logistic Regression classifier and save it.
-
-    Args:
-        texts:  List of training sentences.
-        labels: Corresponding labels ("action_item" | "decision" | "general").
-    """
+    """Train a TF-IDF + Logistic Regression classifier and save it."""
     from sklearn.linear_model import LogisticRegression
     from sklearn.pipeline import Pipeline
     from sklearn.feature_extraction.text import TfidfVectorizer

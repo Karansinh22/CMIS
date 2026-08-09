@@ -26,25 +26,30 @@ def _get_nlp():
         try:
             import spacy
             _nlp = spacy.load("en_core_web_sm")
-        except OSError:
-            raise RuntimeError(
-                "spaCy model 'en_core_web_sm' not found. "
-                "Run: python -m spacy download en_core_web_sm"
-            )
-        except ImportError:
-            raise RuntimeError(
-                "spaCy is not installed. Run: pip install spacy"
-            )
+        except BaseException as exc:
+            logger.warning("Could not load spaCy model en_core_web_sm (%s); using regex owner fallback.", exc)
+            return None
     return _nlp
 
 
 def _find_person(text: str) -> Optional[str]:
-    """Return the first PERSON entity found in text, or None."""
-    nlp = _get_nlp()
-    doc = nlp(text)
-    for ent in doc.ents:
-        if ent.label_ == "PERSON":
-            return ent.text.strip()
+    """Return the first PERSON entity found in text using spaCy or regex proper noun fallback."""
+    try:
+        nlp = _get_nlp()
+        if nlp is not None:
+            doc = nlp(text)
+            for ent in doc.ents:
+                if ent.label_ == "PERSON":
+                    return ent.text.strip()
+    except BaseException as exc:
+        logger.debug("spaCy entity extraction failed (%s); trying regex fallback.", exc)
+
+    # Regex proper noun fallback (e.g., "Karan will prepare...", "Assign to Alex")
+    import re
+    match = re.search(r'\b([A-Z][a-z]+)\s+(?:will|should|must|needs to|is going to|to)\b', text)
+    if match:
+        return match.group(1)
+
     return None
 
 

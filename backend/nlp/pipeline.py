@@ -87,6 +87,9 @@ def run_nlp(meeting_id: str, db: Session) -> None:
         # ── 6. Save ActionItems and Decisions ────────────────────────────────
         update_status(meeting_id, "structuring", "Extracting action items and decisions…")
 
+        action_items_list = []
+        decisions_list = []
+
         for idx, (text, classification, speaker) in enumerate(
             zip(texts, classifications, speaker_labels)
         ):
@@ -96,7 +99,7 @@ def run_nlp(meeting_id: str, db: Session) -> None:
                 owner = extract_owner(text, speaker_label=speaker, context_texts=context_window)
                 urgency = score_urgency(text)
 
-                crud.create_action_item(
+                ai = crud.create_action_item(
                     db,
                     ActionItemCreate(
                         context_id=context_id,
@@ -105,20 +108,43 @@ def run_nlp(meeting_id: str, db: Session) -> None:
                         urgency=urgency,
                     ),
                 )
+                action_items_list.append({"description": text, "owner": owner, "urgency": urgency})
 
             elif classification == "decision":
-                crud.create_decision(
+                d = crud.create_decision(
                     db,
                     DecisionCreate(
                         context_id=context_id,
                         description=text,
                     ),
                 )
+                decisions_list.append({"description": text})
 
-        # ── 7. Mark done ─────────────────────────────────────────────────────
+        # ── 7. Generate Meeting Summary ──────────────────────────────────────
+        update_status(meeting_id, "structuring", "Generating meeting summary…")
+        meeting = crud.get_meeting(db, meeting_id)
+        summary_type = meeting.summary_type if meeting and meeting.summary_type else "balanced"
+
+        topics_list = [{"title": c.title, "summary": c.summary} for c in topic_clusters]
+        
+        from nlp.summarizer import generate_meeting_summary
+        overall_summary = generate_meeting_summary(
+            segment_texts=texts,
+            topics=topics_list,
+            action_items=action_items_list,
+            decisions=decisions_list,
+            summary_type=summary_type,
+            speaker_labels=speaker_labels,
+        )
+
+        context_entry.summary = overall_summary
+        context_entry.summary_type = summary_type
+        db.commit()
+
+        # ── 8. Mark done ─────────────────────────────────────────────────────
         crud.update_meeting_status(db, meeting_id, "done")
         update_status(meeting_id, "done", "NLP structuring complete.")
-        logger.info("NLP pipeline complete for meeting %s.", meeting_id)
+        logger.info("NLP pipeline complete for meeting %s with %s summary.", meeting_id, summary_type)
 
     except Exception as exc:
         logger.exception("NLP pipeline failed for meeting %s: %s", meeting_id, exc)

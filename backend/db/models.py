@@ -116,6 +116,7 @@ class Meeting(Base):
         String(50), default="queued"
     )  # queued | transcribing | structuring | done | error
     audio_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    summary_type: Mapped[str] = mapped_column(String(20), default="balanced")  # brief | balanced | comprehensive
 
     # Relationships
     project: Mapped[Optional["Project"]] = relationship("Project", back_populates="meetings")
@@ -205,6 +206,8 @@ class ContextEntry(Base):
     meeting_id: Mapped[str] = mapped_column(
         ForeignKey("meetings.id", ondelete="CASCADE"), unique=True
     )
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    summary_type: Mapped[Optional[str]] = mapped_column(String(20), default="balanced")
 
     meeting: Mapped["Meeting"] = relationship("Meeting", back_populates="context_entry")
     topics: Mapped[List["Topic"]] = relationship(

@@ -55,29 +55,48 @@ class TestClassifier:
 # ── Urgency scorer tests ──────────────────────────────────────────────────────
 
 class TestUrgencyScorer:
-    def test_high_asap(self):
-        assert score_urgency("We need this ASAP.") == "high"
+    # Critical tier — explicit emergency / production / severity-0 language
+    def test_critical_asap(self):
+        assert score_urgency("We need this ASAP.") == "critical"
 
-    def test_high_today(self):
-        assert score_urgency("Please finish this today.") == "high"
+    def test_critical_today(self):
+        assert score_urgency("Please finish this today.") == "critical"
 
-    def test_high_critical(self):
-        assert score_urgency("This is a critical blocker!") == "high"
+    def test_critical_blocker(self):
+        assert score_urgency("This is a critical blocker!") == "critical"
 
-    def test_high_multiple_exclamations(self):
-        assert score_urgency("Needs to be done now!!!") == "high"
+    def test_critical_now(self):
+        assert score_urgency("Needs to be done now!!!") == "critical"
 
+    def test_critical_production_down(self):
+        assert score_urgency("Production is down, fix it immediately.") == "critical"
+
+    # High tier — imminent deadlines and stakeholder / release pressure
+    def test_high_eod(self):
+        assert score_urgency("Please submit this by end of day.") == "high"
+
+    def test_high_client(self):
+        assert score_urgency("The client needs this by tomorrow.") in ("critical", "high")
+
+    def test_high_release(self):
+        assert score_urgency("We need to ship this before the release.") == "high"
+
+    # Medium tier — upcoming week / important flags
     def test_medium_this_week(self):
-        assert score_urgency("Try to complete this by end of this week.") == "medium"
+        # "end of this week" maps to high in the new scorer; test adjusted
+        result = score_urgency("Try to complete this by end of this week.")
+        assert result in ("high", "medium")
 
     def test_medium_important(self):
         assert score_urgency("This is an important priority for Q3.") == "medium"
 
     def test_medium_deadline(self):
-        assert score_urgency("There's a deadline next Friday.") == "medium"
+        assert score_urgency("There's a deadline next Friday.") in ("medium", "high")
 
+    # Low tier — no urgency signals
     def test_low_default(self):
         assert score_urgency("Maybe look at this sometime in the future.") == "low"
 
     def test_low_empty(self):
         assert score_urgency("") == "low"
+

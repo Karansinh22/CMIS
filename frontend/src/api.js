@@ -54,6 +54,10 @@ export const uploadMeeting = (file, title, projectOptions = {}, onProgress) => {
   form.append('file', file);
   form.append('title', title);
 
+  if (projectOptions.summaryType) {
+    form.append('summary_type', projectOptions.summaryType);
+  }
+
   if (projectOptions.projectId) {
     form.append('project_id', projectOptions.projectId);
   } else if (projectOptions.newProjectName) {
@@ -85,6 +89,10 @@ export const getTranscriptHistory = (meetingId) =>
 export const getContext        = (meetingId)  => api.get(`/context/${meetingId}`);
 export const getOpenActionItems = ()           => api.get('/context/action-items/open');
 export const patchActionItem   = (id, data)   => api.patch(`/context/action-items/${id}`, data);
+export const createActionItem  = (meetingId, data) => api.post(`/context/${meetingId}/action-items`, data);
+export const deleteActionItem  = (id)          => api.delete(`/context/action-items/${id}`);
+export const createDecision    = (meetingId, data) => api.post(`/context/${meetingId}/decisions`, data);
+export const deleteDecision    = (id)          => api.delete(`/context/decisions/${id}`);
 
 // ── Insights ──────────────────────────────────────────────────────────────────
 
