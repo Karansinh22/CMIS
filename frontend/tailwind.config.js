@@ -24,6 +24,7 @@ export default {
           elevated: "var(--bg-surface-elevated)",
         },
         border: {
+          layout: "var(--border-layout)",
           subtle: "var(--border-subtle)",
           DEFAULT: "var(--border-default)",
           strong: "var(--border-strong)",

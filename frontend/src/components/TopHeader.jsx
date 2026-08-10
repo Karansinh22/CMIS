@@ -36,7 +36,7 @@ function getBreadcrumbs(pathname) {
 }
 
 export default function TopHeader() {
-  const { user, doLogout } = useAuth();
+  const { user, executeSignOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -45,9 +45,8 @@ export default function TopHeader() {
   const breadcrumbs = getBreadcrumbs(location.pathname);
 
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
-    doLogout();
-    navigate('/');
+    await executeSignOut();
+    navigate('/', { replace: true });
   };
 
   const initials = user?.name
@@ -55,7 +54,7 @@ export default function TopHeader() {
     : 'U';
 
   return (
-    <header className="sticky top-0 z-30 h-14 bg-surface border-b border-border-default px-4 sm:px-6 flex items-center justify-between transition-colors duration-150">
+    <header className="sticky top-0 z-30 h-14 bg-surface border-b border-border-layout px-4 sm:px-6 flex items-center justify-between transition-colors duration-150">
       {/* Left: Breadcrumbs */}
       <div className="flex items-center gap-2 text-xs font-medium min-w-0">
         <div className="md:hidden flex items-center gap-2 mr-2">

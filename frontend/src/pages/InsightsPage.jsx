@@ -13,6 +13,7 @@ import {
   Tag, AlertCircle, BarChart2, ShieldAlert, Cpu
 } from 'lucide-react';
 import { getRecurringTopics, getOverdueItems } from '../api';
+import CrossIntelligence from '../components/CrossIntelligence';
 
 function StatBar({ label, value, max, colorClass }) {
   const pct = max ? Math.round((value / max) * 100) : 0;
@@ -138,31 +139,9 @@ export default function InsightsPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          {/* ── Left column: Recurring topics ─────────────────────────────── */}
+          {/* ── Left column: Recurring topics / Cross Intelligence ──────────────── */}
           <div className="lg:col-span-2 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                <RepeatIcon size={15} />
-                Recurring Discussion Topics
-                <span className="badge badge-gray text-[10px] ml-1">{recurring.length}</span>
-              </h2>
-            </div>
-
-            {recurring.length === 0 ? (
-              <div className="empty-state py-16">
-                <RepeatIcon size={24} className="text-text-muted mb-1" />
-                <p className="text-sm font-semibold text-text-primary">No recurring topics detected yet</p>
-                <p className="text-xs text-text-secondary max-w-sm">
-                  Upload multiple meeting recordings with related discussion subjects to trigger MinHash/LSH pattern detection.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {recurring.map((t) => (
-                  <RecurringTopicCard key={t.id} topic={t} />
-                ))}
-              </div>
-            )}
+            <CrossIntelligence items={recurring} title="Cross-Meeting Discussion Intelligence" />
           </div>
 
           {/* ── Right column: Action Item Breakdown & Differentiator ──────── */}

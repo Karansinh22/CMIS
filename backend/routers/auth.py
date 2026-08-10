@@ -135,7 +135,7 @@ async def register(
         existing.otp_code       = otp
         existing.otp_expires_at = datetime.utcnow() + timedelta(minutes=settings.otp_expire_minutes)
         db.commit()
-        background_tasks.add_task(send_otp_email, email, otp, "verify")
+        background_tasks.add_task(send_otp_email, email, otp, "verify", user_name=existing.name)
         return {"message": "Account exists but email not verified. A new OTP has been sent."}
 
     otp = generate_otp()
@@ -149,7 +149,7 @@ async def register(
     db.add(user)
     db.commit()
 
-    background_tasks.add_task(send_otp_email, email, otp, "verify")
+    background_tasks.add_task(send_otp_email, email, otp, "verify", user_name=user.name)
     return {"message": f"Account created. A 6-digit OTP has been sent to {email}."}
 
 
@@ -193,7 +193,7 @@ async def resend_otp(
     user.otp_expires_at = datetime.utcnow() + timedelta(minutes=settings.otp_expire_minutes)
     db.commit()
 
-    background_tasks.add_task(send_otp_email, body.email.lower(), otp, "verify")
+    background_tasks.add_task(send_otp_email, body.email.lower(), otp, "verify", user_name=user.name)
     return {"message": "A new OTP has been sent to your email."}
 
 
@@ -255,7 +255,7 @@ async def forgot_password(
         user.otp_purposes   = "reset"
         user.otp_expires_at = datetime.utcnow() + timedelta(minutes=settings.otp_expire_minutes)
         db.commit()
-        background_tasks.add_task(send_otp_email, body.email.lower(), otp, "reset")
+        background_tasks.add_task(send_otp_email, body.email.lower(), otp, "reset", user_name=user.name)
 
     return {"message": "If that email is registered, you will receive a reset OTP shortly."}
 

@@ -223,3 +223,34 @@ def get_transcript_history(meeting_id: str, db: Session = Depends(get_db)):
         TranscriptEditHistory.meeting_id == meeting_id
     ).order_by(TranscriptEditHistory.edited_at.desc()).all()
     return history
+
+
+@router.delete("/{meeting_id}", status_code=status.HTTP_200_OK)
+def delete_meeting(meeting_id: str, db: Session = Depends(get_db)):
+    """Delete a meeting and all associated transcript, context, and audio data."""
+    meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    # Store project_id before deleting meeting record
+    project_id = meeting.project_id
+
+    if meeting.audio_path:
+        try:
+            audio_file = Path(meeting.audio_path)
+            if audio_file.exists():
+                audio_file.unlink()
+        except Exception as exc:
+            logger.warning("Could not delete audio file %s: %s", meeting.audio_path, exc)
+
+    db.delete(meeting)
+    db.commit()
+
+    # Re-synthesize project context if meeting belonged to a project
+    if project_id:
+        try:
+            synthesize_project_context(project_id, db)
+        except Exception as exc:
+            logger.error("Could not re-synthesize project %s after meeting deletion: %s", project_id, exc)
+
+    return {"status": "deleted", "id": meeting_id}

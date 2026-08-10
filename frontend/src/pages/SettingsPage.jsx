@@ -1,19 +1,19 @@
 /**
- * SettingsPage.jsx — User Account, Security, & System Configuration.
- * Strict enterprise monochrome UI.
+ * SettingsPage.jsx — User Account & Security Settings.
+ * Clean, production-grade monochrome interface.
  */
 import { useState, useEffect } from 'react';
-import { User, Shield, Key, CheckCircle, Save, Lock, LogOut, Cpu, HardDrive } from 'lucide-react';
+import { User, Shield, Key, CheckCircle, Save, Lock, LogOut } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserProfile, updateProfile, changePassword } from '../api';
 import { logout } from '../auth';
 import { useNavigate } from 'react-router-dom';
 
 export default function SettingsPage() {
-  const { user, updateUser, doLogout } = useAuth();
+  const { user, updateUser, executeSignOut } = useAuth();
   const navigate = useNavigate();
 
-  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'security' | 'system'
+  const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'security'
   const [profileData, setProfileData] = useState({ name: '', email: '', email_verified: false, created_at: '' });
   const [loading, setLoading] = useState(true);
 
@@ -87,92 +87,85 @@ export default function SettingsPage() {
   };
 
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
-    doLogout();
-    navigate('/');
+    await executeSignOut();
+    navigate('/', { replace: true });
   };
 
   const initials = profileData.name
     ? profileData.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
-    : 'U';
+    : (user?.name ? user.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() : 'U');
 
   return (
-    <div className="page-wrapper max-w-3xl space-y-6">
+    <div className="page-wrapper max-w-3xl space-y-6 py-8">
       {/* Page Header */}
       <div>
-        <h1 className="page-title text-2xl font-extrabold">Account Settings</h1>
-        <p className="page-subtitle text-xs">Manage your profile credentials, authentication, and engine preferences.</p>
+        <h1 className="page-title text-2xl md:text-3xl font-extrabold text-text-primary tracking-tight">Account Settings</h1>
+        <p className="page-subtitle text-sm text-text-secondary mt-1">Manage your account profile, credentials, and active sessions.</p>
       </div>
 
       {/* Tabs Header */}
-      <div className="tab-bar">
+      <div className="tab-bar max-w-md">
         <button
           onClick={() => setActiveTab('profile')}
           className={activeTab === 'profile' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <User size={13} />
-          <span>Profile</span>
+          <User size={15} />
+          <span>Profile Details</span>
         </button>
         <button
           onClick={() => setActiveTab('security')}
           className={activeTab === 'security' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <Shield size={13} />
+          <Shield size={15} />
           <span>Security &amp; Password</span>
-        </button>
-        <button
-          onClick={() => setActiveTab('system')}
-          className={activeTab === 'system' ? 'tab-btn-active' : 'tab-btn-inactive'}
-        >
-          <Cpu size={13} />
-          <span>System Engine</span>
         </button>
       </div>
 
-      {/* Tab 1: Profile */}
+      {/* Tab 1: Profile Details */}
       {activeTab === 'profile' && (
-        <div className="card p-6 space-y-6">
+        <div className="card p-6 md:p-8 space-y-6">
           {/* Avatar Header */}
-          <div className="flex items-center gap-4 pb-4 border-b border-border-subtle">
-            <div className="w-14 h-14 rounded-lg bg-surface-hover border border-border-default flex items-center justify-center text-text-primary text-lg font-bold">
+          <div className="flex items-center gap-4 pb-5 border-b border-border-subtle">
+            <div className="w-16 h-16 rounded-xl bg-surface-hover border border-border-default flex items-center justify-center text-text-primary text-xl font-extrabold shadow-sm">
               {initials}
             </div>
-            <div className="space-y-0.5">
-              <h3 className="text-base font-bold text-text-primary">{profileData.name || 'User Profile'}</h3>
-              <p className="text-text-muted text-xs">{profileData.email}</p>
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-text-primary">{profileData.name || user?.name || 'User Profile'}</h3>
+              <p className="text-text-secondary text-sm">{profileData.email || user?.email}</p>
               <div className="pt-1">
-                <span className="badge badge-success text-[10px]">
-                  <CheckCircle size={10} /> Verified Account
+                <span className="badge badge-success text-xs py-0.5 px-2.5">
+                  <CheckCircle size={12} /> Verified Account
                 </span>
               </div>
             </div>
           </div>
 
-          <form onSubmit={handleUpdateProfile} className="space-y-4">
+          <form onSubmit={handleUpdateProfile} className="space-y-5">
             <div>
-              <label className="label">Full Name</label>
+              <label className="label text-xs">Full Name</label>
               <input
                 type="text"
                 required
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
-                className="input text-xs"
+                className="input text-sm"
+                placeholder="Enter your full name"
               />
             </div>
 
             <div>
-              <label className="label">Email Address</label>
+              <label className="label text-xs">Email Address</label>
               <input
                 type="email"
                 disabled
-                value={profileData.email || ''}
-                className="input text-xs bg-surface-hover opacity-70 cursor-not-allowed"
+                value={profileData.email || user?.email || ''}
+                className="input text-sm bg-surface-hover opacity-70 cursor-not-allowed"
               />
-              <p className="text-[11px] text-text-muted mt-1">Email is locked to your account credentials.</p>
+              <p className="text-xs text-text-muted mt-1.5">Email address is tied to your verified login credentials.</p>
             </div>
 
             {profileMsg.text && (
-              <div className={`p-3 rounded text-xs ${
+              <div className={`p-3.5 rounded-xl text-xs font-semibold ${
                 profileMsg.type === 'success'
                   ? 'bg-semantic-success/10 text-semantic-success border border-semantic-success/20'
                   : 'bg-semantic-error/10 text-semantic-error border border-semantic-error/20'
@@ -182,9 +175,9 @@ export default function SettingsPage() {
             )}
 
             <div className="flex justify-end pt-2">
-              <button type="submit" disabled={savingProfile} className="btn-primary text-xs py-2 px-4">
-                <Save size={13} />
-                <span>{savingProfile ? 'Saving...' : 'Save Profile Changes'}</span>
+              <button type="submit" disabled={savingProfile} className="btn-primary text-sm py-2.5 px-5">
+                <Save size={15} />
+                <span>{savingProfile ? 'Saving Changes...' : 'Save Profile Changes'}</span>
               </button>
             </div>
           </form>
@@ -193,53 +186,53 @@ export default function SettingsPage() {
 
       {/* Tab 2: Security & Password */}
       {activeTab === 'security' && (
-        <div className="space-y-5">
-          <div className="card p-6 space-y-5">
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-primary pb-3 border-b border-border-subtle">
-              <Key size={14} />
+        <div className="space-y-6">
+          <div className="card p-6 md:p-8 space-y-6">
+            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-text-primary pb-4 border-b border-border-subtle">
+              <Key size={16} />
               <h3>Change Password</h3>
             </div>
 
-            <form onSubmit={handleChangePassword} className="space-y-4">
+            <form onSubmit={handleChangePassword} className="space-y-5">
               <div>
-                <label className="label">Current Password</label>
+                <label className="label text-xs">Current Password</label>
                 <input
                   type="password"
                   required
                   value={pwdForm.current_password}
                   onChange={(e) => setPwdForm({ ...pwdForm, current_password: e.target.value })}
-                  className="input text-xs"
+                  className="input text-sm"
                   placeholder="••••••••"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="label">New Password</label>
+                  <label className="label text-xs">New Password</label>
                   <input
                     type="password"
                     required
                     value={pwdForm.new_password}
                     onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })}
-                    className="input text-xs"
+                    className="input text-sm"
                     placeholder="At least 8 characters"
                   />
                 </div>
                 <div>
-                  <label className="label">Confirm New Password</label>
+                  <label className="label text-xs">Confirm New Password</label>
                   <input
                     type="password"
                     required
                     value={pwdForm.confirm_password}
                     onChange={(e) => setPwdForm({ ...pwdForm, confirm_password: e.target.value })}
-                    className="input text-xs"
+                    className="input text-sm"
                     placeholder="Re-enter new password"
                   />
                 </div>
               </div>
 
               {pwdMsg.text && (
-                <div className={`p-3 rounded text-xs ${
+                <div className={`p-3.5 rounded-xl text-xs font-semibold ${
                   pwdMsg.type === 'success'
                     ? 'bg-semantic-success/10 text-semantic-success border border-semantic-success/20'
                     : 'bg-semantic-error/10 text-semantic-error border border-semantic-error/20'
@@ -249,53 +242,28 @@ export default function SettingsPage() {
               )}
 
               <div className="flex justify-end pt-2">
-                <button type="submit" disabled={changingPwd} className="btn-primary text-xs py-2 px-4">
-                  <Lock size={13} />
-                  <span>{changingPwd ? 'Updating...' : 'Update Password'}</span>
+                <button type="submit" disabled={changingPwd} className="btn-primary text-sm py-2.5 px-5">
+                  <Lock size={15} />
+                  <span>{changingPwd ? 'Updating Password...' : 'Update Password'}</span>
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Session Management */}
-          <div className="card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          {/* Active Session Card */}
+          <div className="card p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">Active Authentication Session</h4>
-              <p className="text-xs text-text-secondary mt-0.5">Secure JWT authentication stored on this browser.</p>
+              <h4 className="text-sm font-bold text-text-primary uppercase tracking-wider">Active Session</h4>
+              <p className="text-xs text-text-secondary mt-1">Authenticated JWT session active on this browser.</p>
             </div>
 
             <button
               onClick={handleLogout}
-              className="btn-danger text-xs py-2 px-3.5 self-start sm:self-auto"
+              className="btn-danger text-xs py-2.5 px-4 self-start sm:self-auto font-bold"
             >
-              <LogOut size={13} />
+              <LogOut size={14} />
               <span>Sign Out</span>
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 3: System Engine */}
-      {activeTab === 'system' && (
-        <div className="card p-6 space-y-4">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-primary pb-3 border-b border-border-subtle">
-            <HardDrive size={14} />
-            <h3>CMIS Local Intelligence Engine</h3>
-          </div>
-
-          <div className="space-y-2 text-xs">
-            <div className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex justify-between items-center">
-              <span className="text-text-secondary">Backend API Server</span>
-              <span className="font-semibold text-text-primary">FastAPI (Python 3.10)</span>
-            </div>
-            <div className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex justify-between items-center">
-              <span className="text-text-secondary">Speech Diarization &amp; Transcription</span>
-              <span className="font-semibold text-text-primary">Whisper (Base)</span>
-            </div>
-            <div className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex justify-between items-center">
-              <span className="text-text-secondary">Locality-Sensitive Hashing Index</span>
-              <span className="font-semibold text-text-primary">MinHash LSH (128 Permutations)</span>
-            </div>
           </div>
         </div>
       )}

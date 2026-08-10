@@ -1,23 +1,33 @@
 /**
- * LoginPage.jsx — Authentication login page.
+ * LoginPage.jsx — Authentication login page with post-login workspace transition.
  * Strict enterprise monochrome UI with theme support.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Brain, Sun, Moon, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Brain, Sun, Moon, AlertCircle } from 'lucide-react';
 import { login, saveTokens } from '../auth';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import PostLoginTransition from '../components/PostLoginTransition';
 
 export default function LoginPage() {
-  const navigate   = useNavigate();
-  const location   = useLocation();
-  const { refetchUser } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, refetchUser } = useAuth();
   const from = location.state?.from?.pathname || '/';
 
-  const [form, setForm]     = useState({ email: '', password: '' });
-  const [error, setError]   = useState('');
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showSuccessTransition, setShowSuccessTransition] = useState(false);
+  const [authedUser, setAuthedUser] = useState(null);
+
+  // If already logged in, redirect straight to dashboard
+  useEffect(() => {
+    if (user && !showSuccessTransition) {
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate, showSuccessTransition]);
 
   const onChange = (e) => setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
 
@@ -28,21 +38,30 @@ export default function LoginPage() {
     try {
       const { data } = await login(form.email, form.password);
       saveTokens(data.access_token, data.refresh_token);
-      await refetchUser();
-      navigate(from, { replace: true });
+      const res = await refetchUser();
+      setAuthedUser(res?.data || null);
+      // Trigger post-login animation transition
+      setShowSuccessTransition(true);
     } catch (err) {
       const msg = err.response?.data?.detail || 'Invalid email or password. Please try again.';
       setError(msg);
-    } finally {
       setLoading(false);
     }
   };
 
+  const handleTransitionComplete = () => {
+    navigate(from, { replace: true });
+  };
+
+  if (showSuccessTransition) {
+    return <PostLoginTransition user={authedUser || user} onComplete={handleTransitionComplete} />;
+  }
+
   return (
-    <AuthLayout title="Sign In" subtitle="Access your meeting intelligence dashboard">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <AuthLayout title="Sign In" subtitle="Access your contextual meeting intelligence workspace">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="label">Email Address</label>
+          <label className="label text-sm font-bold">Email Address</label>
           <input
             name="email"
             type="email"
@@ -50,14 +69,14 @@ export default function LoginPage() {
             autoFocus
             value={form.email}
             onChange={onChange}
-            className="input text-xs"
+            className="input text-base"
             placeholder="you@company.com"
           />
         </div>
         <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="label mb-0">Password</label>
-            <Link to="/forgot-password" className="text-xs text-text-secondary hover:text-text-primary underline">
+          <div className="flex items-center justify-between mb-2">
+            <label className="label text-sm font-bold mb-0">Password</label>
+            <Link to="/forgot-password" className="text-sm text-text-secondary hover:text-text-primary underline">
               Forgot password?
             </Link>
           </div>
@@ -67,7 +86,7 @@ export default function LoginPage() {
             required
             value={form.password}
             onChange={onChange}
-            className="input text-xs"
+            className="input text-base"
             placeholder="••••••••"
           />
         </div>
@@ -77,58 +96,64 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={loading}
-          className="btn-primary w-full justify-center py-2.5 text-xs font-semibold mt-2"
+          className="btn-primary w-full justify-center text-base font-extrabold h-[52px] mt-2 shadow-lg"
         >
-          {loading ? <Spinner /> : 'Sign In'}
+          {loading ? <Spinner /> : 'Sign In to CMIS'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-xs text-text-secondary">
+      <p className="pt-2 text-center text-sm text-text-secondary font-medium">
         Don't have an account?{' '}
-        <Link to="/register" className="text-text-primary font-semibold hover:underline">
-          Create an account
+        <Link to="/register" className="font-bold text-text-primary hover:underline">
+          Create one now
         </Link>
       </p>
     </AuthLayout>
   );
 }
 
-// ── Shared Sub-components for Auth Flow ──────────────────────────────────────
+// ── Shared sub-components ─────────────────────────────────────────────────────
 
 export function AuthLayout({ title, subtitle, children }) {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-canvas text-text-primary flex items-center justify-center p-4 relative transition-colors duration-200">
+    <div className="min-h-screen bg-canvas text-text-primary flex items-center justify-center p-4 sm:p-6 relative overflow-hidden transition-colors duration-200">
       {/* Top right theme toggle */}
-      <div className="absolute top-5 right-5 z-20">
+      <div className="absolute top-6 right-6 z-20">
         <button
           onClick={toggleTheme}
-          className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-2"
-          title="Toggle Visual Mode"
+          className="btn-secondary text-sm py-2 px-4 flex items-center gap-2 font-semibold"
+          title="Toggle Visual Theme"
         >
-          {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           <span className="hidden sm:inline">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
         </button>
       </div>
 
-      <div className="w-full max-w-sm relative z-10 space-y-6">
-        {/* Brand Logo */}
-        <div className="flex flex-col items-center justify-center text-center space-y-2">
-          <div className="w-10 h-10 rounded-lg bg-text-primary text-canvas flex items-center justify-center font-bold">
-            <Brain size={20} />
-          </div>
-          <div>
-            <h2 className="text-lg font-extrabold tracking-tight text-text-primary">CMIS</h2>
-            <p className="text-[10px] uppercase font-mono tracking-widest text-text-muted">Contextual Meeting Intelligence</p>
+      <div className="w-full max-w-[500px] relative z-10 py-8">
+        {/* Logo Branding */}
+        <div className="flex justify-center mb-8">
+          <div
+            onClick={() => navigate('/')}
+            className="flex items-center gap-3.5 cursor-pointer group"
+          >
+            <div className="w-14 h-14 rounded-2xl bg-text-primary text-canvas flex items-center justify-center font-extrabold shadow-lg group-hover:scale-105 transition-transform duration-200">
+              <Brain size={28} className="text-canvas" />
+            </div>
+            <div>
+              <span className="text-3xl font-extrabold text-text-primary tracking-tight font-display block leading-none">CMIS</span>
+              <span className="text-xs text-text-muted font-mono tracking-widest uppercase block mt-1">MEETING INTELLIGENCE</span>
+            </div>
           </div>
         </div>
 
-        {/* Auth Card */}
-        <div className="card p-6 shadow-modal space-y-4">
-          <div className="pb-2 border-b border-border-subtle">
-            <h1 className="text-base font-bold text-text-primary">{title}</h1>
-            <p className="text-xs text-text-secondary mt-0.5">{subtitle}</p>
+        {/* Large Auth Card */}
+        <div className="card p-8 sm:p-12 border border-border-default shadow-2xl rounded-2xl space-y-6">
+          <div className="space-y-1.5 text-center sm:text-left">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-text-primary tracking-tight font-display">{title}</h1>
+            <p className="text-text-secondary text-sm sm:text-base leading-relaxed">{subtitle}</p>
           </div>
           {children}
         </div>
@@ -138,13 +163,18 @@ export function AuthLayout({ title, subtitle, children }) {
 }
 
 export function Spinner() {
-  return <div className="w-4 h-4 border-2 border-canvas border-t-transparent rounded-full animate-spin" />;
+  return (
+    <div className="flex items-center gap-2">
+      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      <span>Authenticating...</span>
+    </div>
+  );
 }
 
 export function ErrorBanner({ message }) {
   return (
-    <div className="flex items-start gap-2 bg-semantic-error/10 border border-semantic-error/30 rounded-lg p-3 text-xs text-semantic-error">
-      <AlertCircle size={14} className="mt-0.5 shrink-0" />
+    <div className="flex items-start gap-2.5 p-3 rounded-xl bg-semantic-error/10 border border-semantic-error/20 text-xs text-semantic-error font-medium">
+      <AlertCircle size={15} className="mt-0.5 shrink-0" />
       <span>{message}</span>
     </div>
   );
@@ -152,8 +182,8 @@ export function ErrorBanner({ message }) {
 
 export function SuccessBanner({ message }) {
   return (
-    <div className="flex items-start gap-2 bg-semantic-success/10 border border-semantic-success/30 rounded-lg p-3 text-xs text-semantic-success">
-      <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+    <div className="flex items-start gap-2.5 p-3 rounded-xl bg-semantic-success/10 border border-semantic-success/20 text-xs text-semantic-success font-medium">
+      <AlertCircle size={15} className="mt-0.5 shrink-0 rotate-180" />
       <span>{message}</span>
     </div>
   );

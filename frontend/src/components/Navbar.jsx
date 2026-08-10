@@ -36,7 +36,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Navbar() {
-  const { user, doLogout } = useAuth();
+  const { user, executeSignOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -46,9 +46,8 @@ export default function Navbar() {
   }, [location.pathname]);
 
   const handleLogout = async () => {
-    try { await logout(); } catch { /* ignore */ }
-    doLogout();
-    navigate('/');
+    await executeSignOut();
+    navigate('/', { replace: true });
   };
 
   const initials = user?.name
@@ -59,17 +58,17 @@ export default function Navbar() {
     <div className="flex flex-col h-full justify-between p-4 bg-surface text-text-primary">
       {/* Top: Logo & Navigation */}
       <div className="space-y-6">
-        {/* Brand */}
+        {/* Brand Logo */}
         <div
           onClick={() => navigate('/')}
-          className="flex items-center gap-2.5 px-2 py-1.5 cursor-pointer rounded-lg hover:bg-surface-hover transition-colors"
+          className="flex items-center gap-3 px-2 py-2 cursor-pointer rounded-xl hover:bg-surface-hover transition-all group"
         >
-          <div className="w-8 h-8 rounded-lg bg-text-primary text-canvas flex items-center justify-center font-bold shadow-subtle shrink-0">
-            <Brain size={18} className="text-canvas" />
+          <div className="w-9 h-9 rounded-xl bg-text-primary text-canvas flex items-center justify-center font-bold shadow-subtle shrink-0 group-hover:scale-105 transition-transform">
+            <Brain size={20} className="text-canvas" />
           </div>
           <div>
-            <span className="font-bold text-sm text-text-primary tracking-tight block">CMIS</span>
-            <span className="text-[10px] text-text-muted font-medium uppercase tracking-wider block">Intelligence</span>
+            <span className="font-extrabold text-base text-text-primary tracking-tight block font-display">CMIS</span>
+            <span className="text-[10px] text-text-muted font-mono uppercase tracking-wider block">MEETING INTELLIGENCE</span>
           </div>
         </div>
 
@@ -153,12 +152,12 @@ export default function Navbar() {
   return (
     <>
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex flex-col w-56 shrink-0 min-h-screen border-r border-border-default bg-surface sticky top-0 h-screen z-40">
+      <aside className="hidden md:flex flex-col w-56 shrink-0 min-h-screen border-r border-border-layout bg-surface sticky top-0 h-screen z-40">
         {sidebarContent}
       </aside>
 
       {/* Mobile Top Navbar with Hamburger */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-surface border-b border-border-default px-4 flex items-center justify-between">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-50 h-14 bg-surface border-b border-border-layout px-4 flex items-center justify-between">
         <div onClick={() => navigate('/')} className="flex items-center gap-2 cursor-pointer">
           <div className="w-7 h-7 rounded-md bg-text-primary text-canvas flex items-center justify-center font-bold">
             <Brain size={15} className="text-canvas" />
@@ -182,7 +181,7 @@ export default function Navbar() {
             className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs animate-fade-in-fast"
             onClick={() => setMobileOpen(false)}
           />
-          <div className="md:hidden fixed top-0 bottom-0 left-0 z-50 w-64 bg-surface border-r border-border-default shadow-modal animate-slide-up">
+          <div className="md:hidden fixed top-0 bottom-0 left-0 z-50 w-64 bg-surface border-r border-border-layout shadow-modal animate-slide-up">
             {sidebarContent}
           </div>
         </>

@@ -16,12 +16,14 @@ import {
 } from 'lucide-react';
 import {
   getMeeting, getTranscript, getContext, patchActionItem, editTranscriptSegment,
-  getTranscriptHistory, createActionItem, deleteActionItem, createDecision, deleteDecision
+  getTranscriptHistory, createActionItem, deleteActionItem, createDecision, deleteDecision,
+  deleteMeeting
 } from '../api';
 import { useStatusSocket } from '../hooks/useStatusSocket';
 import StatusBadge from '../components/StatusBadge';
 import UrgencyBadge from '../components/UrgencyBadge';
 import ProcessingStatus from '../components/ProcessingStatus';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -569,6 +571,24 @@ export default function MeetingDetailPage() {
   const [loading,  setLoading]  = useState(true);
   const [error,    setError]    = useState(null);
 
+  // Deletion modal state
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting]       = useState(false);
+  const [deleteError, setDeleteError]     = useState(null);
+
+  const handleDeleteMeeting = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteMeeting(id);
+      navigate('/meetings', { replace: true });
+    } catch (err) {
+      setDeleteError(err.response?.data?.detail || 'Failed to delete meeting. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   useStatusSocket(
     meeting && meeting.status !== 'done' ? id : null,
     (event) => {
@@ -747,11 +767,37 @@ export default function MeetingDetailPage() {
 
           <div className="flex items-center gap-2 shrink-0">
             <button onClick={loadAll} className="btn-icon p-2" title="Refresh intelligence">
-              <RefreshCw size={14} className="text-text-secondary hover:text-text-primary" />
+              <RefreshCw size={15} className="text-text-secondary hover:text-text-primary" />
+            </button>
+
+            <button
+              onClick={() => setConfirmDelete(true)}
+              className="btn-secondary text-xs text-semantic-error border-semantic-error/30 hover:bg-semantic-error/10 hover:border-semantic-error/50 font-bold px-3 py-1.5 flex items-center gap-1.5"
+              title="Delete meeting"
+            >
+              <Trash2 size={14} />
+              <span>Delete</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        isOpen={confirmDelete}
+        title={`Delete "${meeting.title}"?`}
+        message="This meeting and all its associated transcripts, reports, speakers, and action items will be permanently removed from your CMIS workspace."
+        confirmText="Delete Meeting"
+        loading={isDeleting}
+        error={deleteError}
+        onConfirm={handleDeleteMeeting}
+        onClose={() => {
+          if (!isDeleting) {
+            setConfirmDelete(false);
+            setDeleteError(null);
+          }
+        }}
+      />
 
       {/* Tabs */}
       <div className="tab-bar">

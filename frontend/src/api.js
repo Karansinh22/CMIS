@@ -76,6 +76,7 @@ export const uploadMeeting = (file, title, projectOptions = {}, onProgress) => {
 
 export const listMeetings = () => api.get('/meetings/');
 export const getMeeting   = (id) => api.get(`/meetings/${id}`);
+export const deleteMeeting = (id) => api.delete(`/meetings/${id}`);
 export const getTranscript = (id) => api.get(`/meetings/${id}/transcript`);
 
 export const editTranscriptSegment = (meetingId, segmentId, newText) =>

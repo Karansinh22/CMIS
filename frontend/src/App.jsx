@@ -19,6 +19,9 @@ import ProjectDetailPage from './pages/ProjectDetailPage.jsx';
 import ActionItemsPage from './pages/ActionItemsPage.jsx';
 import InsightsPage from './pages/InsightsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
+import { Brain } from 'lucide-react';
+
+import SignOutTransition from './components/SignOutTransition';
 
 function AppShell({ children }) {
   return (
@@ -35,15 +38,33 @@ function AppShell({ children }) {
 }
 
 function MainAppRoutes() {
-  const { user } = useAuth();
+  const { user, loading, isSigningOut, completeSignOut } = useAuth();
+
+  if (isSigningOut) {
+    return <SignOutTransition onComplete={() => completeSignOut(window.location.replace('/'))} />;
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-canvas text-text-primary p-4">
+        <div className="w-12 h-12 rounded-2xl bg-text-primary text-canvas flex items-center justify-center font-extrabold shadow-lg animate-pulse mb-3">
+          <Brain size={24} className="text-canvas" />
+        </div>
+        <div className="flex items-center gap-2 text-xs text-text-muted font-mono tracking-wider">
+          <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+          <span>LOADING CMIS...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Routes>
       {/* ── Public auth & landing routes ──────────────────────────────────── */}
       <Route path="/"                 element={user ? <AppShell><HomePage /></AppShell> : <PublicLandingPage />} />
       <Route path="/landing"          element={<PublicLandingPage />} />
-      <Route path="/login"            element={<LoginPage />} />
-      <Route path="/register"         element={<RegisterPage />} />
+      <Route path="/login"            element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+      <Route path="/register"         element={user ? <Navigate to="/" replace /> : <RegisterPage />} />
       <Route path="/verify-email"     element={<VerifyEmailPage />} />
       <Route path="/forgot-password"  element={<ForgotPasswordPage />} />
       <Route path="/reset-password"   element={<ResetPasswordPage />} />

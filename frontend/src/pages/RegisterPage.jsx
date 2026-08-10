@@ -41,9 +41,9 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout title="Create Account" subtitle="Start extracting intelligence from your meeting recordings">
-      <form onSubmit={handleSubmit} className="space-y-3.5">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="label">Full Name</label>
+          <label className="label text-sm font-bold">Full Name</label>
           <input
             name="name"
             type="text"
@@ -51,43 +51,43 @@ export default function RegisterPage() {
             autoFocus
             value={form.name}
             onChange={onChange}
-            className="input text-xs"
+            className="input text-base"
             placeholder="Jane Smith"
           />
         </div>
         <div>
-          <label className="label">Email Address</label>
+          <label className="label text-sm font-bold">Email Address</label>
           <input
             name="email"
             type="email"
             required
             value={form.email}
             onChange={onChange}
-            className="input text-xs"
+            className="input text-base"
             placeholder="jane@company.com"
           />
         </div>
         <div>
-          <label className="label">Password</label>
+          <label className="label text-sm font-bold">Password</label>
           <input
             name="password"
             type="password"
             required
             value={form.password}
             onChange={onChange}
-            className="input text-xs"
+            className="input text-base"
             placeholder="At least 8 characters"
           />
         </div>
         <div>
-          <label className="label">Confirm Password</label>
+          <label className="label text-sm font-bold">Confirm Password</label>
           <input
             name="confirm"
             type="password"
             required
             value={form.confirm}
             onChange={onChange}
-            className="input text-xs"
+            className="input text-base"
             placeholder="Re-enter password"
           />
         </div>
@@ -98,15 +98,15 @@ export default function RegisterPage() {
         <button
           type="submit"
           disabled={loading}
-          className="btn-primary w-full justify-center py-2.5 text-xs font-semibold mt-2"
+          className="btn-primary w-full justify-center text-base font-extrabold h-[52px] mt-2 shadow-lg"
         >
-          {loading ? <Spinner /> : 'Create Account'}
+          {loading ? <Spinner /> : 'Create Free Account'}
         </button>
       </form>
 
-      <p className="mt-5 text-center text-xs text-text-secondary">
+      <p className="pt-2 text-center text-sm text-text-secondary font-medium">
         Already have an account?{' '}
-        <Link to="/login" className="text-text-primary font-semibold hover:underline">
+        <Link to="/login" className="text-text-primary font-bold hover:underline">
           Sign in
         </Link>
       </p>
