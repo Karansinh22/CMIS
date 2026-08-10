@@ -1,13 +1,13 @@
 /**
- * UploadPage.jsx — Premium drag-and-drop meeting upload with animated
- * drop zone, audio waveform preview, project assignment, and live pipeline status.
+ * UploadPage.jsx — Audio upload and meeting intelligence ingestion.
+ * Strict enterprise monochrome UI with drop zone, summary selector, and project grouping.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Upload, FileAudio, X, Loader2, ArrowRight, FolderKanban,
-  FileText, Sparkles, Mic2, CheckCircle2, Layers,
-  Building2, Tag, ChevronRight,
+  FileText, Sparkles, Mic, CheckCircle2, Layers,
+  Building2, ChevronRight, Check
 } from 'lucide-react';
 import { uploadMeeting, listProjects } from '../api';
 import { useStatusSocket } from '../hooks/useStatusSocket';
@@ -20,79 +20,61 @@ const SUMMARY_OPTIONS = [
     id: 'brief',
     label: 'Brief',
     sublabel: 'Executive Highlights',
-    desc: 'Bullet-point key facts, top decision, primary action item. Perfect for executives.',
-    icon: '⚡',
+    desc: 'Bullet-point key takeaways, main decisions, and priority action items.',
   },
   {
     id: 'balanced',
     label: 'Balanced',
     sublabel: 'Structured Overview',
-    desc: 'Three-section narrative with context, outcomes, and next steps. Default choice.',
-    icon: '📋',
+    desc: 'Three-part narrative with context, decisions made, and next steps. Default mode.',
     recommended: true,
   },
   {
     id: 'comprehensive',
     label: 'In-Depth',
-    sublabel: 'Full Intelligence Report',
-    desc: 'Complete multi-section analysis with keyword maps, topic breakdown, and evidence.',
-    icon: '🔬',
+    sublabel: 'Comprehensive Intelligence',
+    desc: 'Full multi-section report with detailed discussion points and topic breakdowns.',
   },
 ];
 
 const PROJECT_CATEGORIES = ['Engineering', 'Strategy & Operations', 'Product', 'Sales & Clients', 'Research', 'General'];
 
-function AudioWaveform() {
-  const bars = Array.from({ length: 24 }, (_, i) => i);
-  return (
-    <div className="flex items-end justify-center gap-0.5 h-8">
-      {bars.map((i) => (
-        <div
-          key={i}
-          className="w-0.5 bg-brand-400/60 rounded-full animate-pulse-slow"
-          style={{
-            height: `${20 + Math.sin(i * 0.8) * 50 + Math.random() * 20}%`,
-            animationDelay: `${i * 80}ms`,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
 function SummaryPicker({ value, onChange }) {
   return (
-    <div>
-      <label className="label">
-        <Sparkles size={11} className="inline mr-1 text-brand-400" />
-        Summary Depth
+    <div className="space-y-1.5">
+      <label className="label flex items-center gap-1.5">
+        <Sparkles size={12} />
+        <span>Summary Depth</span>
       </label>
-      <div className="grid grid-cols-3 gap-2">
-        {SUMMARY_OPTIONS.map((opt) => (
-          <button
-            key={opt.id}
-            type="button"
-            onClick={() => onChange(opt.id)}
-            className={`relative p-3 rounded-xl text-left border transition-all duration-200 group
-              ${value === opt.id
-                ? 'bg-brand-600/15 border-brand-500/40 shadow-glow-sm'
-                : 'bg-white/[0.02] border-white/[0.06] hover:border-white/15 hover:bg-white/[0.04]'}`}
-          >
-            {opt.recommended && (
-              <span className="absolute -top-1.5 right-2 badge badge-brand text-[9px] py-0 px-1.5">
-                Default
-              </span>
-            )}
-            <span className="text-base mb-1 block">{opt.icon}</span>
-            <p className={`text-xs font-bold leading-tight ${value === opt.id ? 'text-brand-300' : 'text-white/75'}`}>
-              {opt.label}
-            </p>
-            <p className="text-[10px] text-white/35 mt-0.5 leading-tight">{opt.sublabel}</p>
-            {value === opt.id && (
-              <p className="text-[10px] text-white/50 mt-1.5 leading-tight">{opt.desc}</p>
-            )}
-          </button>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        {SUMMARY_OPTIONS.map((opt) => {
+          const isSelected = value === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => onChange(opt.id)}
+              className={`relative p-3.5 rounded-lg text-left border transition-all ${
+                isSelected
+                  ? 'bg-surface-active border-text-primary shadow-sm'
+                  : 'bg-surface border-border-default hover:border-border-strong hover:bg-surface-hover'
+              }`}
+            >
+              {opt.recommended && (
+                <span className="absolute top-2 right-2 badge badge-gray text-[9px] px-1.5 py-0.2">
+                  Recommended
+                </span>
+              )}
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-bold ${isSelected ? 'text-text-primary' : 'text-text-secondary'}`}>
+                  {opt.label}
+                </span>
+              </div>
+              <p className="text-[11px] text-text-muted mt-0.5">{opt.sublabel}</p>
+              <p className="text-[11px] text-text-secondary mt-1.5 leading-relaxed">{opt.desc}</p>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
@@ -117,7 +99,7 @@ export default function UploadPage() {
   const [newProject, setNewProject] = useState({ name: '', company: '', category: 'Engineering' });
 
   useEffect(() => {
-    listProjects().then(({ data }) => setProjects(data)).catch(() => {});
+    listProjects().then(({ data }) => setProjects(data || [])).catch(() => {});
   }, []);
 
   useStatusSocket(meetingId, (event) => {
@@ -140,7 +122,9 @@ export default function UploadPage() {
   const onDrop = useCallback((e) => {
     e.preventDefault();
     setDragging(false);
-    selectFile(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      selectFile(e.dataTransfer.files[0]);
+    }
   }, [selectFile]);
 
   const handleSubmit = async (e) => {
@@ -162,9 +146,9 @@ export default function UploadPage() {
     try {
       const res = await uploadMeeting(file, title.trim(), opts, setUploadPct);
       setMeetingId(res.data.id);
-      setWsStatus({ status: 'queued', message: 'Queued for processing…' });
+      setWsStatus({ status: 'queued', message: 'Queued for pipeline execution...' });
     } catch (err) {
-      setError(err.response?.data?.detail || 'Upload failed. Is the backend running?');
+      setError(err.response?.data?.detail || 'Upload failed. Is the backend server running?');
       setUploading(false);
     }
   };
@@ -173,47 +157,41 @@ export default function UploadPage() {
   const hasError = wsStatus?.status === 'error';
 
   return (
-    <div className="max-w-2xl mx-auto py-10 px-4 animate-slide-up">
+    <div className="page-wrapper max-w-2xl space-y-6">
 
-      {/* ── Header ── */}
-      <div className="mb-8">
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full
-                        bg-brand-600/10 border border-brand-500/20 text-brand-300
-                        text-[11px] font-semibold mb-3">
-          <Mic2 size={10} />
-          New Analysis
-        </div>
-        <h1 className="text-2xl font-bold text-white tracking-tight">Upload Recording</h1>
-        <p className="text-white/40 mt-1 text-sm">
-          Drop in your meeting audio — CMIS will transcribe, structure, and extract intelligence.
+      {/* ── Page Header ── */}
+      <div>
+        <h1 className="page-title text-2xl font-extrabold">Ingest Meeting Recording</h1>
+        <p className="page-subtitle text-xs">
+          Upload recorded audio to initiate transcription, speaker diarization, topic detection, and action item extraction.
         </p>
       </div>
 
-      {/* ── Post-upload: Processing view ── */}
+      {/* ── Post-Upload Pipeline Status View ── */}
       {meetingId ? (
-        <div className="space-y-5 animate-scale-in">
+        <div className="space-y-4">
           <ProcessingStatus status={wsStatus?.status || 'queued'} message={wsStatus?.message} />
 
-          {/* File info strip */}
-          <div className="glass p-3 flex items-center gap-3 rounded-xl">
-            <FileAudio size={14} className="text-brand-400 shrink-0" />
+          {/* File summary bar */}
+          <div className="card p-3 flex items-center gap-3">
+            <FileAudio size={16} className="text-text-primary shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-white/70 truncate font-medium">{file?.name}</p>
-              <p className="text-[10px] text-white/30">{title}</p>
+              <p className="text-xs font-semibold text-text-primary truncate">{file?.name}</p>
+              <p className="text-[11px] text-text-secondary truncate">{title}</p>
             </div>
-            <span className="badge-brand text-[10px]">{summaryType}</span>
+            <span className="badge badge-gray text-[10px] uppercase font-semibold">{summaryType}</span>
           </div>
 
           {(done || hasError) && (
-            <div className="flex gap-3 pt-2">
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
               {done && (
                 <button
                   onClick={() => navigate(`/meetings/${meetingId}`)}
-                  className="btn-primary flex-1 justify-center py-3"
+                  className="btn-primary flex-1 justify-center py-2.5 text-xs"
                 >
-                  <CheckCircle2 size={15} />
-                  View Intelligence Report
-                  <ArrowRight size={14} />
+                  <CheckCircle2 size={14} />
+                  <span>Open Intelligence Report</span>
+                  <ArrowRight size={13} />
                 </button>
               )}
               <button
@@ -221,32 +199,30 @@ export default function UploadPage() {
                   setFile(null); setTitle(''); setMeetingId(null);
                   setWsStatus(null); setUploading(false);
                 }}
-                className="btn-secondary flex-1 justify-center"
+                className="btn-secondary flex-1 justify-center text-xs py-2.5"
               >
-                Upload Another
+                Upload Another Recording
               </button>
             </div>
           )}
         </div>
-
       ) : (
-        /* ── Upload form ── */
+        /* ── Upload Form ── */
         <form onSubmit={handleSubmit} className="space-y-5">
 
-          {/* Drop zone */}
+          {/* Drag & Drop Zone */}
           <div
             onClick={() => inputRef.current?.click()}
             onDrop={onDrop}
             onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
-            className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center
-                        transition-all duration-300 group
-              ${dragging
-                ? 'border-brand-400 bg-brand-600/10 shadow-glow-brand scale-[1.01]'
+            className={`card border-2 border-dashed p-8 text-center cursor-pointer transition-all ${
+              dragging
+                ? 'border-text-primary bg-surface-active'
                 : file
-                ? 'border-emerald-500/40 bg-emerald-500/[0.04]'
-                : 'border-white/[0.08] bg-white/[0.01] hover:border-brand-500/40 hover:bg-brand-600/[0.04]'
-              }`}
+                ? 'border-text-primary bg-surface-hover'
+                : 'border-border-strong hover:border-text-primary hover:bg-surface-hover'
+            }`}
           >
             <input
               ref={inputRef}
@@ -257,108 +233,104 @@ export default function UploadPage() {
             />
 
             {file ? (
-              <div className="flex flex-col items-center gap-3 animate-scale-in">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25
-                                flex items-center justify-center">
-                  <FileAudio size={28} className="text-emerald-400" />
+              <div className="flex flex-col items-center gap-2.5">
+                <div className="w-12 h-12 rounded-lg bg-surface border border-border-default flex items-center justify-center text-text-primary">
+                  <FileAudio size={22} />
                 </div>
-                <AudioWaveform />
                 <div>
-                  <p className="font-semibold text-white text-sm">{file.name}</p>
-                  <p className="text-white/40 text-xs mt-0.5">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB · Ready to analyse
+                  <p className="font-bold text-text-primary text-sm">{file.name}</p>
+                  <p className="text-text-muted text-xs mt-0.5">
+                    {(file.size / 1024 / 1024).toFixed(2)} MB • Ready for analysis
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setFile(null); setTitle(''); }}
-                  className="flex items-center gap-1 text-white/25 hover:text-red-400
-                             text-xs transition-colors"
+                  className="btn-ghost text-xs text-semantic-error hover:bg-semantic-error/10 py-1 px-2.5 mt-1"
                 >
-                  <X size={12} /> Remove file
+                  <X size={12} />
+                  <span>Remove file</span>
                 </button>
               </div>
             ) : (
-              <div className="flex flex-col items-center gap-3 text-white/30 py-4">
-                <div className={`w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.08]
-                                 flex items-center justify-center transition-all duration-300
-                                 group-hover:bg-brand-600/10 group-hover:border-brand-500/30`}>
-                  <Upload size={24} className="group-hover:text-brand-400 transition-colors" />
+              <div className="flex flex-col items-center gap-2.5 py-4">
+                <div className="w-12 h-12 rounded-lg bg-surface border border-border-default flex items-center justify-center text-text-muted">
+                  <Upload size={20} />
                 </div>
                 <div>
-                  <p className="font-semibold text-white/60 text-sm">
-                    {dragging ? 'Drop it!' : 'Drop audio file here'}
+                  <p className="font-semibold text-text-primary text-xs sm:text-sm">
+                    {dragging ? 'Drop audio recording here' : 'Drop audio recording or click to browse'}
                   </p>
-                  <p className="text-xs mt-1 text-white/25">
-                    or <span className="text-brand-400 underline underline-offset-2">click to browse</span>
-                    &nbsp;· MP3, WAV, M4A, MP4, OGG, FLAC
+                  <p className="text-[11px] text-text-muted mt-1">
+                    Supports MP3, WAV, M4A, MP4, OGG, FLAC, WEBM
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Meeting title */}
+          {/* Meeting Title Input */}
           <div>
             <label className="label">Meeting Title *</label>
             <input
-              className="input"
-              placeholder="e.g. Q3 Architecture Review, Sprint Planning"
+              type="text"
+              className="input text-xs"
+              placeholder="e.g. Q3 Architecture Review, Client Strategy Alignment"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               required
             />
           </div>
 
-          {/* Summary depth picker */}
+          {/* Summary Depth Selection */}
           <SummaryPicker value={summaryType} onChange={setSummaryType} />
 
-          {/* Project assignment */}
-          <div className="glass p-4 rounded-2xl border border-white/[0.07] space-y-3">
-            <label className="label">
-              <FolderKanban size={11} className="inline mr-1 text-brand-400" />
-              Project Workspace
+          {/* Project Workspace Assignment */}
+          <div className="card p-4 space-y-3">
+            <label className="label flex items-center gap-1.5">
+              <FolderKanban size={12} />
+              <span>Project Workspace Assignment</span>
             </label>
 
-            {/* Mode pills */}
-            <div className="flex gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {[
-                { id: 'standalone', label: 'Standalone',        icon: <Layers size={11} /> },
-                { id: 'existing',   label: 'Add to Project',    icon: <FolderKanban size={11} /> },
-                { id: 'new',        label: 'Create & Add',      icon: <Building2 size={11} /> },
-              ].map(({ id, label, icon }) => (
+                { id: 'standalone', label: 'Standalone' },
+                { id: 'existing',   label: 'Assign to Existing Project' },
+                { id: 'new',        label: 'Create New Workspace' },
+              ].map(({ id, label }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setProjectMode(id)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold
-                              border transition-all ${projectMode === id
-                    ? 'bg-brand-600/20 text-brand-300 border-brand-500/35'
-                    : 'text-white/40 border-white/[0.06] hover:text-white/70 hover:border-white/15'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    projectMode === id
+                      ? 'bg-surface-active text-text-primary border border-border-default font-semibold'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+                  }`}
                 >
-                  {icon} {label}
+                  {label}
                 </button>
               ))}
             </div>
 
-            {/* Existing project select */}
+            {/* Existing Project Select */}
             {projectMode === 'existing' && (
-              <div className="animate-fade-in pt-1">
+              <div className="pt-2">
                 {projects.length === 0 ? (
-                  <p className="text-[11px] text-white/35">
-                    No projects yet. Use "Create &amp; Add" to start one.
+                  <p className="text-xs text-text-muted">
+                    No projects found. Select "Create New Workspace" to create one.
                   </p>
                 ) : (
                   <select
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="input text-sm bg-surface-100"
+                    className="input text-xs"
                     required
                   >
-                    <option value="">— Choose a project —</option>
+                    <option value="">— Select a workspace —</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name}{p.company ? ` · ${p.company}` : ''}
+                        {p.name}{p.company ? ` (${p.company})` : ''}
                       </option>
                     ))}
                   </select>
@@ -366,29 +338,29 @@ export default function UploadPage() {
               </div>
             )}
 
-            {/* New project form */}
+            {/* New Project Form */}
             {projectMode === 'new' && (
-              <div className="space-y-2.5 animate-fade-in pt-1">
+              <div className="space-y-2.5 pt-2">
                 <input
                   type="text"
                   required
-                  placeholder="Project name *"
+                  placeholder="Project Workspace Name *"
                   value={newProject.name}
                   onChange={(e) => setNewProject({ ...newProject, name: e.target.value })}
-                  className="input text-sm"
+                  className="input text-xs"
                 />
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <input
                     type="text"
-                    placeholder="Company / Client"
+                    placeholder="Company / Client (Optional)"
                     value={newProject.company}
                     onChange={(e) => setNewProject({ ...newProject, company: e.target.value })}
-                    className="input text-sm"
+                    className="input text-xs"
                   />
                   <select
                     value={newProject.category}
                     onChange={(e) => setNewProject({ ...newProject, category: e.target.value })}
-                    className="input text-sm bg-surface-100"
+                    className="input text-xs"
                   >
                     {PROJECT_CATEGORIES.map((c) => (
                       <option key={c} value={c}>{c}</option>
@@ -399,19 +371,19 @@ export default function UploadPage() {
             )}
           </div>
 
-          {/* Error */}
+          {/* Error Message */}
           {error && (
-            <div className="glass p-3.5 border border-red-500/25 bg-red-500/5 text-red-400 text-xs rounded-xl">
+            <div className="card p-3 border-semantic-error/30 bg-semantic-error/5 text-semantic-error text-xs">
               {error}
             </div>
           )}
 
-          {/* Upload progress */}
+          {/* Upload Progress */}
           {uploading && uploadPct > 0 && uploadPct < 100 && (
-            <div>
-              <div className="flex justify-between text-[10px] text-white/30 mb-1">
-                <span>Uploading file…</span>
-                <span>{uploadPct}%</span>
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-text-secondary">
+                <span>Uploading file...</span>
+                <span className="font-mono">{uploadPct}%</span>
               </div>
               <div className="progress-track">
                 <div className="progress-fill" style={{ width: `${uploadPct}%` }} />
@@ -419,31 +391,27 @@ export default function UploadPage() {
             </div>
           )}
 
-          {/* Submit */}
+          {/* Submit Button */}
           <button
             type="submit"
             disabled={!file || !title.trim() || uploading}
-            className="btn-primary w-full justify-center py-3.5 text-sm font-bold shadow-glow-brand"
+            className="btn-primary w-full justify-center py-2.5 text-xs font-semibold"
           >
             {uploading ? (
               <>
-                <Loader2 size={15} className="animate-spin" />
-                Uploading… {uploadPct}%
+                <Loader2 size={14} className="animate-spin" />
+                <span>Uploading... {uploadPct}%</span>
               </>
             ) : (
               <>
-                <Sparkles size={15} />
-                Analyse Meeting
-                <ChevronRight size={14} className="ml-auto opacity-60" />
+                <Sparkles size={14} />
+                <span>Begin Analysis</span>
+                <ChevronRight size={14} />
               </>
             )}
           </button>
         </form>
       )}
-
-      <p className="text-white/15 text-[10px] text-center mt-8">
-        Supported: WAV · MP3 · M4A · MP4 · OGG · FLAC · WEBM
-      </p>
     </div>
   );
 }

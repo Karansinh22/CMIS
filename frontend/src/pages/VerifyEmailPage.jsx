@@ -1,5 +1,6 @@
 /**
- * VerifyEmailPage.jsx — 6-digit OTP input with auto-advance, resend timer.
+ * VerifyEmailPage.jsx — 6-digit OTP email verification screen.
+ * Strict enterprise monochrome UI.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -22,7 +23,6 @@ export default function VerifyEmailPage() {
   const [resendTimer, setResendTimer] = useState(60);
   const inputRefs = useRef([]);
 
-  // Countdown for resend button
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer((p) => p - 1), 1000);
@@ -54,16 +54,16 @@ export default function VerifyEmailPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const otp = digits.join('');
-    if (otp.length < OTP_LENGTH) { setError('Please enter the full 6-digit OTP.'); return; }
+    if (otp.length < OTP_LENGTH) { setError('Please enter the full 6-digit verification code.'); return; }
     setError(''); setLoading(true);
     try {
       const { data } = await verifyEmail(email, otp);
       saveTokens(data.access_token, data.refresh_token);
       await refetchUser();
-      setSuccess('Email verified! Redirecting...');
+      setSuccess('Email verified successfully! Opening workspace...');
       setTimeout(() => navigate('/'), 1000);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Verification failed.');
+      setError(err.response?.data?.detail || 'Verification failed. Invalid code.');
     } finally {
       setLoading(false);
     }
@@ -74,31 +74,31 @@ export default function VerifyEmailPage() {
     setError(''); setSuccess('');
     try {
       await resendOTP(email);
-      setSuccess('A new OTP has been sent to your email.');
+      setSuccess('A new verification code has been dispatched.');
       setResendTimer(60);
       setDigits(Array(OTP_LENGTH).fill(''));
       inputRefs.current[0]?.focus();
     } catch (err) {
-      setError(err.response?.data?.detail || 'Could not resend OTP.');
+      setError(err.response?.data?.detail || 'Could not resend code.');
     }
   };
 
   return (
-    <AuthLayout title="Verify your email" subtitle={`Enter the 6-digit OTP sent to ${email || 'your email'}`}>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* OTP input boxes */}
-        <div className="flex gap-3 justify-center" onPaste={handlePaste}>
+    <AuthLayout title="Verify Email" subtitle={`Enter the 6-digit code sent to ${email || 'your email'}`}>
+      <form onSubmit={handleSubmit} className="space-y-5">
+        {/* OTP Input Boxes */}
+        <div className="flex gap-2 justify-center" onPaste={handlePaste}>
           {digits.map((d, i) => (
             <input
               key={i}
               ref={(el) => (inputRefs.current[i] = el)}
-              type="text" inputMode="numeric" maxLength={1}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
               value={d}
               onChange={(e) => handleDigitChange(e, i)}
               onKeyDown={(e) => handleKeyDown(e, i)}
-              className="w-12 h-14 text-center text-2xl font-bold bg-white/5 border border-white/10
-                         rounded-xl text-white focus:outline-none focus:border-brand-500 focus:ring-1
-                         focus:ring-brand-500/30 transition-all duration-200 caret-transparent"
+              className="w-10 h-12 text-center text-lg font-mono font-bold bg-surface border border-border-default rounded-lg text-text-primary focus:border-text-primary focus:outline-none transition-colors"
             />
           ))}
         </div>
@@ -106,18 +106,22 @@ export default function VerifyEmailPage() {
         {error   && <ErrorBanner   message={error} />}
         {success && <SuccessBanner message={success} />}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3 text-base">
-          {loading ? <Spinner /> : 'Verify Email'}
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full justify-center py-2.5 text-xs font-semibold"
+        >
+          {loading ? <Spinner /> : 'Verify Account'}
         </button>
 
-        <div className="text-center">
+        <div className="text-center pt-1">
           <button
             type="button"
             onClick={handleResend}
             disabled={resendTimer > 0}
-            className="text-sm text-white/40 hover:text-white/70 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+            className="text-xs text-text-muted hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {resendTimer > 0 ? `Resend OTP in ${resendTimer}s` : 'Resend OTP'}
+            {resendTimer > 0 ? `Resend code in ${resendTimer}s` : 'Resend verification code'}
           </button>
         </div>
       </form>

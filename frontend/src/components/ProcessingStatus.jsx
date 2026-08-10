@@ -1,16 +1,15 @@
 /**
- * ProcessingStatus.jsx — Live animated pipeline status display.
- * Built with Framer Motion for smooth, fast, organic micro-interactions.
+ * ProcessingStatus.jsx — Clean, professional monochrome pipeline status display.
  */
 import { motion } from 'framer-motion';
-import { CheckCircle2, Loader2, Circle, AlertCircle, Zap } from 'lucide-react';
+import { CheckCircle2, Loader2, Circle, AlertCircle, Cpu } from 'lucide-react';
 
 const STEPS = [
-  { id: 'queued',       label: 'Queued',        desc: 'Waiting for worker allocation'      },
-  { id: 'transcribing', label: 'Transcribing',   desc: 'Converting speech audio to text'    },
+  { id: 'queued',       label: 'Queued',        desc: 'Waiting for worker allocation' },
+  { id: 'transcribing', label: 'Transcribing',   desc: 'Converting speech audio to text' },
   { id: 'structuring',  label: 'Analysing NLP',  desc: 'Extracting topics, decisions & tasks' },
-  { id: 'summarising',  label: 'Summarising',    desc: 'Generating TF-IDF intelligence'     },
-  { id: 'done',         label: 'Complete',       desc: 'Intelligence pipeline finished'      },
+  { id: 'summarising',  label: 'Summarising',    desc: 'Generating structured intelligence' },
+  { id: 'done',         label: 'Complete',       desc: 'Intelligence pipeline finished' },
 ];
 
 const STATUS_ORDER = ['queued', 'transcribing', 'structuring', 'summarising', 'done'];
@@ -35,23 +34,14 @@ function StepIcon({ state }) {
         animate={{ scale: 1 }}
         transition={{ type: 'spring', stiffness: 400, damping: 25 }}
       >
-        <CheckCircle2 size={16} className="text-emerald-400" />
+        <CheckCircle2 size={16} className="text-semantic-success" />
       </motion.div>
     );
   }
   if (state === 'active') {
-    return (
-      <div className="relative flex items-center justify-center">
-        <motion.span
-          className="absolute inset-0 rounded-full bg-brand-500/40"
-          animate={{ scale: [1, 1.6, 1], opacity: [0.6, 0, 0.6] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <Loader2 size={16} className="text-brand-400 animate-spin relative z-10" />
-      </div>
-    );
+    return <Loader2 size={16} className="text-text-primary animate-spin" />;
   }
-  return <Circle size={16} className="text-white/20" />;
+  return <Circle size={16} className="text-text-muted opacity-40" />;
 }
 
 export default function ProcessingStatus({ status, message }) {
@@ -62,16 +52,16 @@ export default function ProcessingStatus({ status, message }) {
   if (isError) {
     return (
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
+        initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="glass p-5 border border-red-500/30 bg-red-500/5 rounded-2xl"
+        className="card p-5 border-semantic-error/30 bg-semantic-error/5"
       >
-        <div className="flex items-center gap-3 mb-2">
-          <AlertCircle size={18} className="text-red-400 shrink-0" />
-          <span className="text-red-400 font-bold text-sm">Processing Failed</span>
+        <div className="flex items-center gap-3 mb-1">
+          <AlertCircle size={18} className="text-semantic-error shrink-0" />
+          <span className="text-semantic-error font-bold text-sm">Processing Failed</span>
         </div>
         {message && (
-          <p className="text-red-400/80 text-xs pl-7 leading-relaxed">{message}</p>
+          <p className="text-semantic-error/80 text-xs pl-7 leading-relaxed">{message}</p>
         )}
       </motion.div>
     );
@@ -85,89 +75,79 @@ export default function ProcessingStatus({ status, message }) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.98, y: 12 }}
+      initial={{ opacity: 0, scale: 0.98, y: 8 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: 'easeOut' }}
-      className="glass p-6 rounded-3xl border border-brand-500/20 bg-gradient-aurora shadow-card"
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      className="card p-6 shadow-card"
     >
       {/* Header */}
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-xl bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-brand-300">
-          <Zap size={18} />
+      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border-subtle">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-surface-hover border border-border-default flex items-center justify-center text-text-primary">
+            <Cpu size={16} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-text-primary tracking-tight">Intelligence Pipeline Processing</p>
+            {message && <p className="text-xs text-text-secondary mt-0.5">{message}</p>}
+          </div>
         </div>
-        <div>
-          <p className="text-base font-bold text-white tracking-tight">Real-time NLP Pipeline</p>
-          {message && <p className="text-xs text-white/50 mt-0.5">{message}</p>}
-        </div>
-        <div className="ml-auto flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-500/15 border border-brand-500/25">
-          <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
-          <span className="text-[11px] font-bold text-brand-300 uppercase tracking-wider">Processing</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-surface-hover border border-border-strong text-[11px] font-semibold text-text-primary">
+          <span className="w-1.5 h-1.5 rounded-full bg-text-primary animate-pulse" />
+          <span>Active</span>
         </div>
       </div>
 
       {/* Steps */}
-      <div className="space-y-3">
+      <div className="space-y-3.5">
         {STEPS.map((step, idx) => {
           const state = getStepStatus(step.id, status);
           return (
-            <motion.div
-              key={step.id}
-              layout
-              className="flex items-start gap-3.5 relative"
-            >
-              {/* Line */}
+            <div key={step.id} className="flex items-start gap-3 relative">
+              {/* Vertical connector line */}
               {idx < STEPS.length - 1 && (
-                <div className="absolute left-[7px] top-6 bottom-0 w-0.5 bg-white/10" />
+                <div className="absolute left-[7px] top-5 bottom-0 w-px bg-border-subtle" />
               )}
 
-              <div className="shrink-0 mt-0.5 z-10">
+              <div className="shrink-0 mt-0.5 z-10 bg-surface">
                 <StepIcon state={state} />
               </div>
 
               <div className="flex-1 min-w-0 pb-1">
                 <div className="flex items-center justify-between">
-                  <p className={`text-xs font-bold transition-colors ${
-                    state === 'active'   ? 'text-brand-300 text-sm' :
-                    state === 'done'     ? 'text-emerald-400' :
-                    'text-white/30'
+                  <p className={`text-xs font-semibold ${
+                    state === 'active' ? 'text-text-primary font-bold' :
+                    state === 'done'   ? 'text-text-primary' :
+                    'text-text-muted'
                   }`}>
                     {step.label}
                   </p>
                   {state === 'active' && (
-                    <motion.span
-                      animate={{ opacity: [0.6, 1, 0.6] }}
-                      transition={{ duration: 1.2, repeat: Infinity }}
-                      className="text-[10px] font-bold uppercase tracking-wider text-brand-300 bg-brand-500/20 px-2 py-0.5 rounded-full border border-brand-500/30"
-                    >
-                      Active
-                    </motion.span>
+                    <span className="text-[10px] font-medium text-text-secondary bg-surface-hover px-2 py-0.5 rounded border border-border-default">
+                      In progress
+                    </span>
                   )}
                   {state === 'done' && (
-                    <span className="text-[11px] font-semibold text-emerald-400/80">✓ Completed</span>
+                    <span className="text-[11px] font-medium text-text-secondary">Done</span>
                   )}
                 </div>
                 {state === 'active' && (
-                  <motion.p
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    className="text-xs text-white/60 mt-0.5"
-                  >
+                  <p className="text-xs text-text-secondary mt-0.5">
                     {step.desc}
-                  </motion.p>
+                  </p>
                 )}
               </div>
-            </motion.div>
+            </div>
           );
         })}
       </div>
 
-      {/* Animated progress bar */}
-      <div className="mt-5 progress-track relative overflow-hidden h-2.5 bg-white/10 rounded-full">
+      {/* Progress track */}
+      <div className="mt-5 progress-track">
         <motion.div
-          className="h-full bg-gradient-brand rounded-full"
+          className="progress-fill"
           initial={{ width: 0 }}
           animate={{ width: `${progressPercent}%` }}
-          transition={{ duration: 0.35, ease: 'easeInOut' }}
+          transition={{ duration: 0.3, ease: 'easeInOut' }}
         />
       </div>
     </motion.div>

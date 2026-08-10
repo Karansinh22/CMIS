@@ -1,6 +1,6 @@
 /**
  * RegisterPage.jsx — Create account with name, email, password.
- * On success routes to /verify-email with the email pre-filled.
+ * Strict enterprise monochrome UI.
  */
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -9,8 +9,8 @@ import { AuthLayout, ErrorBanner, Spinner, SuccessBanner } from './LoginPage';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [form, setForm]     = useState({ name: '', email: '', password: '', confirm: '' });
-  const [error, setError]   = useState('');
+  const [form, setForm]       = useState({ name: '', email: '', password: '', confirm: '' });
+  const [error, setError]     = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -24,14 +24,14 @@ export default function RegisterPage() {
       return;
     }
     if (form.password.length < 8) {
-      setError('Password must be at least 8 characters.');
+      setError('Password must be at least 8 characters long.');
       return;
     }
     setLoading(true);
     try {
       const { data } = await register(form.name, form.email, form.password);
-      setSuccess(data.message);
-      setTimeout(() => navigate('/verify-email', { state: { email: form.email } }), 1500);
+      setSuccess(data.message || 'Account created! Redirecting to email verification...');
+      setTimeout(() => navigate('/verify-email', { state: { email: form.email } }), 1200);
     } catch (err) {
       setError(err.response?.data?.detail || 'Registration failed. Please try again.');
     } finally {
@@ -40,52 +40,73 @@ export default function RegisterPage() {
   };
 
   return (
-    <AuthLayout title="Create your account" subtitle="Start transforming your meetings with AI">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <AuthLayout title="Create Account" subtitle="Start extracting intelligence from your meeting recordings">
+      <form onSubmit={handleSubmit} className="space-y-3.5">
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">Full Name</label>
+          <label className="label">Full Name</label>
           <input
-            name="name" type="text" required autoFocus
-            value={form.name} onChange={onChange}
-            className="input" placeholder="Jane Smith"
+            name="name"
+            type="text"
+            required
+            autoFocus
+            value={form.name}
+            onChange={onChange}
+            className="input text-xs"
+            placeholder="Jane Smith"
           />
         </div>
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">Email</label>
+          <label className="label">Email Address</label>
           <input
-            name="email" type="email" required
-            value={form.email} onChange={onChange}
-            className="input" placeholder="jane@example.com"
+            name="email"
+            type="email"
+            required
+            value={form.email}
+            onChange={onChange}
+            className="input text-xs"
+            placeholder="jane@company.com"
           />
         </div>
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">Password</label>
+          <label className="label">Password</label>
           <input
-            name="password" type="password" required
-            value={form.password} onChange={onChange}
-            className="input" placeholder="At least 8 characters"
+            name="password"
+            type="password"
+            required
+            value={form.password}
+            onChange={onChange}
+            className="input text-xs"
+            placeholder="At least 8 characters"
           />
         </div>
         <div>
-          <label className="block text-sm text-white/60 mb-1.5">Confirm Password</label>
+          <label className="label">Confirm Password</label>
           <input
-            name="confirm" type="password" required
-            value={form.confirm} onChange={onChange}
-            className="input" placeholder="••••••••"
+            name="confirm"
+            type="password"
+            required
+            value={form.confirm}
+            onChange={onChange}
+            className="input text-xs"
+            placeholder="Re-enter password"
           />
         </div>
 
         {error   && <ErrorBanner   message={error} />}
         {success && <SuccessBanner message={success} />}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3 text-base mt-2">
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full justify-center py-2.5 text-xs font-semibold mt-2"
+        >
           {loading ? <Spinner /> : 'Create Account'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-white/40">
+      <p className="mt-5 text-center text-xs text-text-secondary">
         Already have an account?{' '}
-        <Link to="/login" className="text-brand-400 hover:text-brand-300 font-medium transition-colors">
+        <Link to="/login" className="text-text-primary font-semibold hover:underline">
           Sign in
         </Link>
       </p>

@@ -1,10 +1,20 @@
+/**
+ * ProjectDetailPage.jsx — Cumulative Project Workspace Intelligence.
+ * Strict monochrome enterprise styling.
+ */
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   FolderKanban, Building2, Upload, Layers, Clock, Sparkles, RefreshCw,
-  CheckCircle2, AlertCircle, ArrowLeft, Play, FileText, CheckSquare, MessageSquare, ChevronRight
+  CheckCircle2, AlertCircle, ArrowLeft, Play, FileText, CheckSquare, MessageSquare, ChevronRight,
+  Check
 } from 'lucide-react';
 import { getProject, uploadProjectMeeting, synthesizeProject } from '../api';
+import StatusBadge from '../components/StatusBadge';
+
+function round(val, decimals = 1) {
+  return Number(Math.round(val + 'e' + decimals) + 'e-' + decimals) || 0;
+}
 
 export default function ProjectDetailPage() {
   const { id: projectId } = useParams();
@@ -65,10 +75,10 @@ export default function ProjectDetailPage() {
 
       // Refresh project meeting list
       await fetchProjectData();
-      setTimeout(() => setUploading(false), 3000);
-    } catch (err) {
-      setUploadStatus('Upload failed. Please try again.');
-      setTimeout(() => setUploading(false), 4000);
+      setTimeout(() => setUploading(false), 2500);
+    } catch {
+      setUploadStatus('Upload failed. Please check file format.');
+      setTimeout(() => setUploading(false), 3500);
     }
   };
 
@@ -77,7 +87,7 @@ export default function ProjectDetailPage() {
     try {
       await synthesizeProject(projectId);
       await fetchProjectData();
-    } catch (err) {
+    } catch {
       alert('Failed to re-synthesize project.');
     } finally {
       setResynthesizing(false);
@@ -86,98 +96,102 @@ export default function ProjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+      <div className="page-wrapper py-24 flex flex-col items-center justify-center gap-2 text-text-muted">
+        <div className="w-6 h-6 border-2 border-text-primary border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs">Loading project intelligence...</span>
       </div>
     );
   }
 
   if (!project) {
     return (
-      <div className="max-w-4xl mx-auto px-6 py-12 text-center text-white/60">
-        <p>Project not found.</p>
-        <Link to="/projects" className="btn-primary mt-4 inline-flex">Back to Projects</Link>
+      <div className="page-wrapper py-16 text-center">
+        <p className="text-sm text-text-secondary">Project workspace not found.</p>
+        <Link to="/projects" className="btn-secondary text-xs mt-3 inline-flex">Back to Projects</Link>
       </div>
     );
   }
 
-  const { summary } = project;
+  const summary = project.summary || {
+    meeting_count: project.meetings?.length || 0,
+    total_duration_minutes: 0,
+    overall_summary: '',
+    key_highlights: [],
+    recurring_themes: [],
+    consolidated_action_items: [],
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+    <div className="page-wrapper-wide space-y-6">
       {/* Back button */}
       <div>
-        <Link to="/projects" className="inline-flex items-center gap-2 text-xs font-medium text-white/50 hover:text-white transition-colors">
-          <ArrowLeft size={14} /> Back to Projects
+        <Link to="/projects" className="btn-ghost text-xs pl-0">
+          <ArrowLeft size={13} /> Back to Projects
         </Link>
       </div>
 
       {/* Project Header Card */}
-      <div className="glass p-8 rounded-2xl border border-white/10 relative overflow-hidden space-y-6">
-        <div className="absolute top-0 right-0 p-8 pointer-events-none opacity-10">
-          <FolderKanban size={180} className="text-brand-400" />
-        </div>
-
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3 max-w-2xl">
+      <div className="card p-6 space-y-5">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div className="space-y-2 max-w-2xl">
             <div className="flex flex-wrap items-center gap-2">
               {project.company && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-brand-500/10 text-brand-300 border border-brand-500/20">
-                  <Building2 size={12} />
+                <span className="badge badge-gray text-[10px]">
+                  <Building2 size={10} />
                   {project.company}
                 </span>
               )}
               {project.category && (
-                <span className="px-3 py-1 rounded-full text-xs font-medium bg-white/5 text-white/70 border border-white/10">
+                <span className="badge badge-strong text-[10px]">
                   {project.category}
                 </span>
               )}
             </div>
 
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">{project.name}</h1>
+            <h1 className="text-2xl font-extrabold text-text-primary tracking-tight">{project.name}</h1>
             {project.description && (
-              <p className="text-white/60 text-sm leading-relaxed">{project.description}</p>
+              <p className="text-text-secondary text-xs leading-relaxed">{project.description}</p>
             )}
           </div>
 
           <button
             onClick={handleResynthesize}
             disabled={resynthesizing}
-            className="glass-hover px-4 py-2.5 rounded-xl text-xs font-medium text-white/80 hover:text-white flex items-center gap-2 border border-white/10 shrink-0 self-start md:self-auto"
+            className="btn-secondary text-xs py-2 px-3.5 shrink-0 self-start md:self-auto"
           >
-            <RefreshCw size={14} className={resynthesizing ? 'animate-spin text-brand-400' : ''} />
-            {resynthesizing ? 'Synthesizing...' : 'Re-synthesize Context'}
+            <RefreshCw size={13} className={resynthesizing ? 'animate-spin' : ''} />
+            <span>{resynthesizing ? 'Synthesizing...' : 'Re-synthesize Context'}</span>
           </button>
         </div>
 
         {/* Stats Strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-white/10">
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-            <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider">Meetings Uploaded</p>
-            <p className="text-xl font-bold text-white mt-0.5">{summary.meeting_count}</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-4 border-t border-border-subtle">
+          <div className="stat-card p-3">
+            <span className="stat-label text-[10px]">Meetings</span>
+            <span className="stat-value text-xl">{summary.meeting_count}</span>
           </div>
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-            <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider">Total Audio Context</p>
-            <p className="text-xl font-bold text-white mt-0.5">{summary.total_duration_minutes} mins</p>
+          <div className="stat-card p-3">
+            <span className="stat-label text-[10px]">Audio Context</span>
+            <span className="stat-value text-xl">{summary.total_duration_minutes}m</span>
           </div>
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-            <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider">Action Items</p>
-            <p className="text-xl font-bold text-brand-300 mt-0.5">{summary.consolidated_action_items.length}</p>
+          <div className="stat-card p-3">
+            <span className="stat-label text-[10px]">Action Items</span>
+            <span className="stat-value text-xl">{summary.consolidated_action_items.length}</span>
           </div>
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5">
-            <p className="text-[11px] font-medium text-white/40 uppercase tracking-wider">Recurring Themes</p>
-            <p className="text-xl font-bold text-purple-300 mt-0.5">{summary.recurring_themes.length}</p>
+          <div className="stat-card p-3">
+            <span className="stat-label text-[10px]">Recurring Themes</span>
+            <span className="stat-value text-xl">{summary.recurring_themes.length}</span>
           </div>
         </div>
       </div>
 
-      {/* Background Upload Dropzone */}
+      {/* Audio Upload Dropzone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
         onDragLeave={() => setDragActive(false)}
         onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFileUpload(e.dataTransfer.files); }}
-        className={`glass p-6 rounded-2xl border transition-all duration-200 text-center relative ${
-          dragActive ? 'border-brand-500 bg-brand-500/10' : 'border-white/10 hover:border-white/20'
+        className={`card p-5 text-center transition-all ${
+          dragActive ? 'border-text-primary bg-surface-hover' : ''
         }`}
       >
         <input
@@ -189,100 +203,93 @@ export default function ProjectDetailPage() {
         />
 
         {uploading ? (
-          <div className="space-y-3 py-2">
-            <div className="flex items-center justify-between text-xs text-white/70 max-w-md mx-auto">
+          <div className="space-y-2 py-1 max-w-md mx-auto">
+            <div className="flex items-center justify-between text-xs text-text-secondary">
               <span>{uploadStatus}</span>
-              <span>{uploadProgress}%</span>
+              <span className="font-mono">{uploadProgress}%</span>
             </div>
-            <div className="w-full max-w-md mx-auto bg-white/10 h-2 rounded-full overflow-hidden">
+            <div className="progress-track">
               <div
-                className="bg-brand-500 h-full transition-all duration-300 rounded-full"
+                className="progress-fill"
                 style={{ width: `${uploadProgress}%` }}
               />
             </div>
-            <p className="text-[11px] text-white/40">
-              💡 You can navigate to other pages freely. Processing continues in the background!
+            <p className="text-[11px] text-text-muted">
+              Processing in background. You can navigate freely.
             </p>
           </div>
         ) : (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-left">
-              <div className="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-400 flex items-center justify-center shrink-0">
-                <Upload size={20} />
+              <div className="w-8 h-8 rounded-lg bg-surface-hover border border-border-default flex items-center justify-center text-text-primary shrink-0">
+                <Upload size={16} />
               </div>
               <div>
-                <h4 className="text-sm font-semibold text-white">Add Meeting Audio to this Project</h4>
-                <p className="text-xs text-white/40">
-                  Drop audio recordings (MP3, WAV, M4A). Transcribes in background and expands cumulative context.
+                <h4 className="text-xs font-bold text-text-primary">Ingest Audio to Workspace</h4>
+                <p className="text-[11px] text-text-secondary">
+                  Drop MP3, WAV, M4A recordings to expand cumulative intelligence.
                 </p>
               </div>
             </div>
 
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="btn-primary text-xs py-2.5 px-4 shrink-0 gap-2"
+              className="btn-primary text-xs py-2 px-3.5 shrink-0"
             >
-              <Upload size={14} /> Upload Meeting Audio
+              <Upload size={13} />
+              <span>Upload Audio</span>
             </button>
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-white/10">
+      <div className="tab-bar">
         <button
           onClick={() => setActiveTab('summary')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'summary'
-              ? 'border-brand-500 text-brand-300'
-              : 'border-transparent text-white/40 hover:text-white'
-          }`}
+          className={activeTab === 'summary' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <Sparkles size={16} />
-          Cumulative Project Intelligence
+          <Sparkles size={13} />
+          <span>Cumulative Intelligence</span>
         </button>
         <button
           onClick={() => setActiveTab('meetings')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'meetings'
-              ? 'border-brand-500 text-brand-300'
-              : 'border-transparent text-white/40 hover:text-white'
-          }`}
+          className={activeTab === 'meetings' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <Layers size={16} />
-          Meeting History ({project.meetings.length})
+          <Layers size={13} />
+          <span>Meeting History ({project.meetings?.length || 0})</span>
         </button>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'summary' ? (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {/* Executive Summary */}
-          <div className="glass p-6 rounded-2xl border border-white/10 space-y-3">
-            <div className="flex items-center gap-2 text-brand-400 font-semibold text-sm">
-              <Sparkles size={18} />
+          <div className="card p-6 space-y-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-primary">
+              <Sparkles size={14} />
               <h3>Cumulative Executive Summary</h3>
             </div>
-            <p className="text-white/80 text-sm leading-relaxed whitespace-pre-line">
-              {summary.overall_summary}
+            <p className="text-text-secondary text-xs sm:text-sm leading-relaxed whitespace-pre-line">
+              {summary.overall_summary || 'Upload meeting audio to start generating cumulative context.'}
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Key Highlights */}
-            <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <CheckCircle2 size={16} className="text-emerald-400" />
-                Project Highlights & Milestones
+            <div className="card p-5 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                <CheckCircle2 size={14} className="text-semantic-success" />
+                Project Highlights &amp; Milestones
               </h3>
               {summary.key_highlights.length === 0 ? (
-                <p className="text-xs text-white/40">No highlights recorded yet.</p>
+                <p className="text-xs text-text-muted">No highlights synthesized yet.</p>
               ) : (
-                <ul className="space-y-2.5 text-xs text-white/70">
+                <ul className="space-y-2 text-xs text-text-secondary">
                   {summary.key_highlights.map((h, i) => (
-                    <li key={i} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-white/[0.02] border border-white/5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-400 mt-1.5 shrink-0" />
-                      {h}
+                    <li key={i} className="flex items-start gap-2 p-2 rounded bg-surface-hover border border-border-subtle">
+                      <span className="w-1.5 h-1.5 rounded-full bg-text-primary mt-1.5 shrink-0" />
+                      <span>{h}</span>
                     </li>
                   ))}
                 </ul>
@@ -290,24 +297,24 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* Recurring Themes */}
-            <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <MessageSquare size={16} className="text-purple-400" />
+            <div className="card p-5 space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                <MessageSquare size={14} className="text-text-primary" />
                 Recurring Themes Across Meetings
               </h3>
               {summary.recurring_themes.length === 0 ? (
-                <p className="text-xs text-white/40">No recurring themes detected across meetings yet.</p>
+                <p className="text-xs text-text-muted">No cross-meeting themes detected yet.</p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {summary.recurring_themes.map((t, i) => (
-                    <div key={i} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1.5">
+                    <div key={i} className="p-3 rounded-lg bg-surface-hover border border-border-subtle space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-semibold text-white">{t.theme}</span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                        <span className="font-semibold text-text-primary">{t.theme}</span>
+                        <span className="badge badge-gray text-[10px]">
                           {t.frequency} {t.frequency === 1 ? 'meeting' : 'meetings'}
                         </span>
                       </div>
-                      <p className="text-[11px] text-white/40">
+                      <p className="text-[11px] text-text-muted">
                         Appeared in: {t.meetings.join(', ')}
                       </p>
                     </div>
@@ -318,37 +325,35 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* Consolidated Action Items */}
-          <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
+          <div className="card p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <CheckSquare size={16} className="text-brand-400" />
-                Consolidated Action Items Across Project
+              <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                <CheckSquare size={14} />
+                Consolidated Action Items Across Workspace
               </h3>
-              <span className="text-xs text-white/40">
+              <span className="text-xs text-text-muted">
                 {summary.consolidated_action_items.filter((a) => a.resolved).length} of {summary.consolidated_action_items.length} completed
               </span>
             </div>
 
             {summary.consolidated_action_items.length === 0 ? (
-              <p className="text-xs text-white/40">No action items extracted from project meetings yet.</p>
+              <p className="text-xs text-text-muted">No action items extracted from project recordings yet.</p>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {summary.consolidated_action_items.map((item, idx) => (
-                  <div key={idx} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={item.resolved}
-                      readOnly
-                      className="mt-0.5 rounded bg-white/5 border-white/10 text-brand-500"
-                    />
+                  <div key={idx} className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex items-start gap-3">
+                    <div className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                      item.resolved ? 'bg-semantic-success border-semantic-success text-white' : 'border-border-strong bg-surface'
+                    }`}>
+                      {item.resolved && <Check size={10} strokeWidth={3} />}
+                    </div>
                     <div className="space-y-1 min-w-0 flex-1">
-                      <p className={`text-xs ${item.resolved ? 'line-through text-white/30' : 'text-white/80'}`}>
+                      <p className={`text-xs ${item.resolved ? 'line-through text-text-muted' : 'text-text-primary'}`}>
                         {item.description}
                       </p>
-                      <div className="flex items-center gap-2 text-[10px] text-white/40">
-                        <span>Assignee: <strong className="text-white/60">{item.owner}</strong></span>
-                        <span>•</span>
-                        <span>{item.meeting_title} ({item.meeting_date})</span>
+                      <div className="flex items-center gap-2 text-[10px] text-text-muted flex-wrap">
+                        {item.owner && <span>Assignee: <strong className="text-text-primary">{item.owner}</strong></span>}
+                        {item.meeting_title && <span>• {item.meeting_title}</span>}
                       </div>
                     </div>
                   </div>
@@ -359,46 +364,36 @@ export default function ProjectDetailPage() {
         </div>
       ) : (
         /* Meetings History Tab */
-        <div className="space-y-4">
-          {project.meetings.length === 0 ? (
-            <div className="glass p-8 text-center rounded-2xl border border-white/10">
-              <p className="text-white/40 text-sm">No meeting recordings added to this project yet.</p>
+        <div className="space-y-3">
+          {(!project.meetings || project.meetings.length === 0) ? (
+            <div className="empty-state py-12">
+              <p className="text-xs text-text-muted">No meeting recordings added to this workspace yet.</p>
             </div>
           ) : (
-            <div className="glass rounded-2xl border border-white/10 overflow-hidden divide-y divide-white/5">
+            <div className="divide-y divide-border-subtle border border-border-subtle rounded-lg overflow-hidden">
               {project.meetings.map((m) => (
                 <div
                   key={m.id}
                   onClick={() => navigate(`/meetings/${m.id}`)}
-                  className="p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors cursor-pointer group"
+                  className="p-3.5 flex items-center justify-between hover:bg-surface-hover transition-colors cursor-pointer group"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-brand-400 group-hover:bg-brand-500/10 transition-colors">
-                      <Play size={18} />
+                    <div className="w-8 h-8 rounded-lg bg-surface border border-border-default flex items-center justify-center text-text-primary group-hover:border-border-strong transition-colors">
+                      <Play size={14} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-white group-hover:text-brand-300 transition-colors">
+                      <h4 className="text-xs sm:text-sm font-semibold text-text-primary group-hover:underline">
                         {m.title}
                       </h4>
-                      <p className="text-xs text-white/40">
-                        {m.date ? new Date(m.date).toLocaleDateString() : 'Unknown date'} • {round(m.duration_seconds / 60, 1)} mins
+                      <p className="text-[11px] text-text-muted">
+                        {m.date ? new Date(m.date).toLocaleDateString() : 'Recent'} • {round(m.duration_seconds / 60, 1)} mins
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4">
-                    {/* Status Badge */}
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium capitalize ${
-                      m.status === 'done'
-                        ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20'
-                        : m.status === 'error'
-                        ? 'bg-red-500/10 text-red-300 border border-red-500/20'
-                        : 'bg-amber-500/10 text-amber-300 border border-amber-500/20 animate-pulse'
-                    }`}>
-                      {m.status}
-                    </span>
-
-                    <ChevronRight size={16} className="text-white/20 group-hover:text-white group-hover:translate-x-1 transition-all" />
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={m.status} />
+                    <ChevronRight size={15} className="text-text-muted group-hover:text-text-primary transition-colors" />
                   </div>
                 </div>
               ))}
@@ -408,8 +403,4 @@ export default function ProjectDetailPage() {
       )}
     </div>
   );
-}
-
-function round(val, decimals = 1) {
-  return Number(Math.round(val + 'e' + decimals) + 'e-' + decimals) || 0;
 }

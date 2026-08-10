@@ -1,5 +1,9 @@
+/**
+ * SettingsPage.jsx — User Account, Security, & System Configuration.
+ * Strict enterprise monochrome UI.
+ */
 import { useState, useEffect } from 'react';
-import { User, Shield, Key, CheckCircle, AlertCircle, Save, Lock, LogOut, Cpu, HardDrive } from 'lucide-react';
+import { User, Shield, Key, CheckCircle, Save, Lock, LogOut, Cpu, HardDrive } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getUserProfile, updateProfile, changePassword } from '../api';
 import { logout } from '../auth';
@@ -26,8 +30,8 @@ export default function SettingsPage() {
   const loadProfile = async () => {
     try {
       const { data } = await getUserProfile();
-      setProfileData(data);
-      setNameInput(data.name || '');
+      setProfileData(data || {});
+      setNameInput(data?.name || '');
     } catch (err) {
       console.error('Failed to load user profile', err);
     } finally {
@@ -49,7 +53,7 @@ export default function SettingsPage() {
       const { data } = await updateProfile(nameInput.trim());
       setProfileData(data);
       updateUser(data);
-      setProfileMsg({ type: 'success', text: 'Profile updated successfully!' });
+      setProfileMsg({ type: 'success', text: 'Profile updated successfully.' });
     } catch (err) {
       setProfileMsg({ type: 'error', text: err.response?.data?.detail || 'Failed to update profile.' });
     } finally {
@@ -73,7 +77,7 @@ export default function SettingsPage() {
     setChangingPwd(true);
     try {
       await changePassword(pwdForm.current_password, pwdForm.new_password);
-      setPwdMsg({ type: 'success', text: 'Password changed successfully!' });
+      setPwdMsg({ type: 'success', text: 'Password changed successfully.' });
       setPwdForm({ current_password: '', new_password: '', confirm_password: '' });
     } catch (err) {
       setPwdMsg({ type: 'error', text: err.response?.data?.detail || 'Failed to change password.' });
@@ -85,203 +89,212 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     try { await logout(); } catch { /* ignore */ }
     doLogout();
-    navigate('/login');
+    navigate('/');
   };
 
   const initials = profileData.name
     ? profileData.name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
-    : '?';
+    : 'U';
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-10 space-y-8 animate-slide-up">
-      {/* Header */}
+    <div className="page-wrapper max-w-3xl space-y-6">
+      {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-extrabold text-white tracking-tight">Account Settings & Profile</h1>
-        <p className="text-white/40 text-sm mt-1">Manage your account details, security credentials, and system preferences.</p>
+        <h1 className="page-title text-2xl font-extrabold">Account Settings</h1>
+        <p className="page-subtitle text-xs">Manage your profile credentials, authentication, and engine preferences.</p>
       </div>
 
       {/* Tabs Header */}
-      <div className="flex border-b border-white/10">
+      <div className="tab-bar">
         <button
           onClick={() => setActiveTab('profile')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'profile' ? 'border-brand-500 text-brand-300' : 'border-transparent text-white/40 hover:text-white'
-          }`}
+          className={activeTab === 'profile' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <User size={16} /> Profile Details
+          <User size={13} />
+          <span>Profile</span>
         </button>
         <button
           onClick={() => setActiveTab('security')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'security' ? 'border-brand-500 text-brand-300' : 'border-transparent text-white/40 hover:text-white'
-          }`}
+          className={activeTab === 'security' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <Shield size={16} /> Security & Password
+          <Shield size={13} />
+          <span>Security &amp; Password</span>
         </button>
         <button
           onClick={() => setActiveTab('system')}
-          className={`px-5 py-3 text-sm font-semibold border-b-2 transition-colors flex items-center gap-2 ${
-            activeTab === 'system' ? 'border-brand-500 text-brand-300' : 'border-transparent text-white/40 hover:text-white'
-          }`}
+          className={activeTab === 'system' ? 'tab-btn-active' : 'tab-btn-inactive'}
         >
-          <Cpu size={16} /> System Info
+          <Cpu size={13} />
+          <span>System Engine</span>
         </button>
       </div>
 
-      {/* Tab 1: Profile Details */}
+      {/* Tab 1: Profile */}
       {activeTab === 'profile' && (
-        <div className="space-y-6">
-          <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
-            {/* Avatar header */}
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-brand flex items-center justify-center text-white text-xl font-bold shadow-glow-brand">
-                {initials}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-white">{profileData.name || 'User Profile'}</h3>
-                <p className="text-white/40 text-xs">{profileData.email}</p>
-                <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                  <CheckCircle size={12} />
-                  Verified Email Account
-                </div>
+        <div className="card p-6 space-y-6">
+          {/* Avatar Header */}
+          <div className="flex items-center gap-4 pb-4 border-b border-border-subtle">
+            <div className="w-14 h-14 rounded-lg bg-surface-hover border border-border-default flex items-center justify-center text-text-primary text-lg font-bold">
+              {initials}
+            </div>
+            <div className="space-y-0.5">
+              <h3 className="text-base font-bold text-text-primary">{profileData.name || 'User Profile'}</h3>
+              <p className="text-text-muted text-xs">{profileData.email}</p>
+              <div className="pt-1">
+                <span className="badge badge-success text-[10px]">
+                  <CheckCircle size={10} /> Verified Account
+                </span>
               </div>
             </div>
-
-            <form onSubmit={handleUpdateProfile} className="space-y-4 pt-4 border-t border-white/5">
-              <div>
-                <label className="block text-xs font-semibold text-white/60 mb-1 uppercase tracking-wider">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  className="input"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-white/60 mb-1 uppercase tracking-wider">Email Address</label>
-                <input
-                  type="email"
-                  disabled
-                  value={profileData.email}
-                  className="input bg-white/5 text-white/40 cursor-not-allowed"
-                />
-                <p className="text-[11px] text-white/30 mt-1">Email address is verified and tied to your account identity.</p>
-              </div>
-
-              {profileMsg.text && (
-                <div className={`p-3 rounded-xl text-xs ${profileMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-red-500/10 text-red-300 border border-red-500/20'}`}>
-                  {profileMsg.text}
-                </div>
-              )}
-
-              <div className="flex justify-end pt-2">
-                <button type="submit" disabled={savingProfile} className="btn-primary text-xs py-2.5 px-5 gap-2">
-                  <Save size={14} />
-                  {savingProfile ? 'Saving...' : 'Save Profile Changes'}
-                </button>
-              </div>
-            </form>
           </div>
+
+          <form onSubmit={handleUpdateProfile} className="space-y-4">
+            <div>
+              <label className="label">Full Name</label>
+              <input
+                type="text"
+                required
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                className="input text-xs"
+              />
+            </div>
+
+            <div>
+              <label className="label">Email Address</label>
+              <input
+                type="email"
+                disabled
+                value={profileData.email || ''}
+                className="input text-xs bg-surface-hover opacity-70 cursor-not-allowed"
+              />
+              <p className="text-[11px] text-text-muted mt-1">Email is locked to your account credentials.</p>
+            </div>
+
+            {profileMsg.text && (
+              <div className={`p-3 rounded text-xs ${
+                profileMsg.type === 'success'
+                  ? 'bg-semantic-success/10 text-semantic-success border border-semantic-success/20'
+                  : 'bg-semantic-error/10 text-semantic-error border border-semantic-error/20'
+              }`}>
+                {profileMsg.text}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <button type="submit" disabled={savingProfile} className="btn-primary text-xs py-2 px-4">
+                <Save size={13} />
+                <span>{savingProfile ? 'Saving...' : 'Save Profile Changes'}</span>
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
       {/* Tab 2: Security & Password */}
       {activeTab === 'security' && (
-        <div className="space-y-6">
-          <div className="glass p-6 rounded-2xl border border-white/10 space-y-6">
-            <div className="flex items-center gap-2 text-brand-300 font-semibold text-sm">
-              <Key size={18} />
-              <h3>Change Account Password</h3>
+        <div className="space-y-5">
+          <div className="card p-6 space-y-5">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-primary pb-3 border-b border-border-subtle">
+              <Key size={14} />
+              <h3>Change Password</h3>
             </div>
 
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-white/60 mb-1">Current Password</label>
+                <label className="label">Current Password</label>
                 <input
                   type="password"
                   required
                   value={pwdForm.current_password}
                   onChange={(e) => setPwdForm({ ...pwdForm, current_password: e.target.value })}
-                  className="input"
+                  className="input text-xs"
                   placeholder="••••••••"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-white/60 mb-1">New Password</label>
+                  <label className="label">New Password</label>
                   <input
                     type="password"
                     required
                     value={pwdForm.new_password}
                     onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })}
-                    className="input"
+                    className="input text-xs"
                     placeholder="At least 8 characters"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-white/60 mb-1">Confirm New Password</label>
+                  <label className="label">Confirm New Password</label>
                   <input
                     type="password"
                     required
                     value={pwdForm.confirm_password}
                     onChange={(e) => setPwdForm({ ...pwdForm, confirm_password: e.target.value })}
-                    className="input"
+                    className="input text-xs"
                     placeholder="Re-enter new password"
                   />
                 </div>
               </div>
 
               {pwdMsg.text && (
-                <div className={`p-3 rounded-xl text-xs ${pwdMsg.type === 'success' ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-red-500/10 text-red-300 border border-red-500/20'}`}>
+                <div className={`p-3 rounded text-xs ${
+                  pwdMsg.type === 'success'
+                    ? 'bg-semantic-success/10 text-semantic-success border border-semantic-success/20'
+                    : 'bg-semantic-error/10 text-semantic-error border border-semantic-error/20'
+                }`}>
                   {pwdMsg.text}
                 </div>
               )}
 
               <div className="flex justify-end pt-2">
-                <button type="submit" disabled={changingPwd} className="btn-primary text-xs py-2.5 px-5 gap-2">
-                  <Lock size={14} />
-                  {changingPwd ? 'Updating Password...' : 'Update Password'}
+                <button type="submit" disabled={changingPwd} className="btn-primary text-xs py-2 px-4">
+                  <Lock size={13} />
+                  <span>{changingPwd ? 'Updating...' : 'Update Password'}</span>
                 </button>
               </div>
             </form>
           </div>
 
           {/* Session Management */}
-          <div className="glass p-6 rounded-2xl border border-white/10 flex items-center justify-between">
+          <div className="card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h4 className="text-sm font-bold text-white">Active Session</h4>
-              <p className="text-xs text-white/40 mt-0.5">Signed in on this browser with JWT authentication tokens.</p>
+              <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">Active Authentication Session</h4>
+              <p className="text-xs text-text-secondary mt-0.5">Secure JWT authentication stored on this browser.</p>
             </div>
 
-            <button onClick={handleLogout} className="px-4 py-2 rounded-xl text-xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-colors flex items-center gap-2">
-              <LogOut size={14} /> Sign Out
+            <button
+              onClick={handleLogout}
+              className="btn-danger text-xs py-2 px-3.5 self-start sm:self-auto"
+            >
+              <LogOut size={13} />
+              <span>Sign Out</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Tab 3: System Info */}
+      {/* Tab 3: System Engine */}
       {activeTab === 'system' && (
-        <div className="glass p-6 rounded-2xl border border-white/10 space-y-4">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <HardDrive size={18} className="text-brand-400" />
-            CMIS Local Engine Architecture
-          </h3>
-          <div className="space-y-2 text-xs text-white/60">
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex justify-between">
-              <span>Backend API Server</span>
-              <span className="text-emerald-400 font-medium">FastAPI v0.100.0 (Python 3.10)</span>
+        <div className="card p-6 space-y-4">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-text-primary pb-3 border-b border-border-subtle">
+            <HardDrive size={14} />
+            <h3>CMIS Local Intelligence Engine</h3>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            <div className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex justify-between items-center">
+              <span className="text-text-secondary">Backend API Server</span>
+              <span className="font-semibold text-text-primary">FastAPI (Python 3.10)</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex justify-between">
-              <span>Speech-to-Text Model</span>
-              <span className="text-brand-300 font-medium">Whisper (Base)</span>
+            <div className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex justify-between items-center">
+              <span className="text-text-secondary">Speech Diarization &amp; Transcription</span>
+              <span className="font-semibold text-text-primary">Whisper (Base)</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex justify-between">
-              <span>LSH Vector Store</span>
-              <span className="text-purple-300 font-medium">MinHash LSH Index (128 Permutations)</span>
+            <div className="p-3 rounded-lg bg-surface-hover border border-border-subtle flex justify-between items-center">
+              <span className="text-text-secondary">Locality-Sensitive Hashing Index</span>
+              <span className="font-semibold text-text-primary">MinHash LSH (128 Permutations)</span>
             </div>
           </div>
         </div>
