@@ -7,26 +7,30 @@
 
 ## 1. Project Definition
 
-CMIS is an AI-powered platform that listens to meetings, calls, and lectures, converts them into structured, persistent context — topics, decisions, action items, and urgency — and generates minutes of meeting, summaries, presentations, and agendas on demand from that shared context. Unlike a plain transcription tool, CMIS retains context across multiple related meetings so recurring discussion points and outstanding action items can be tracked automatically over time.
+CMIS is an AI-powered **personal** tool that listens to a single user's meetings, calls, and lectures, converts them into structured, persistent context — topics, decisions, action items, and urgency — and generates minutes of meeting, summaries, and presentations on demand from that personal context store. Unlike a plain transcription tool, CMIS retains context **across the user's own multiple meetings** over time, so recurring discussion points and outstanding action items can be tracked automatically.
+
+The system is designed for **one user running it locally on their own machine**. There is no team sharing, no collaborative workspace, and no cloud dependency — all data stays on the user's device.
 
 ---
 
 ## 2. Problem Statement
 
-Meeting documentation today is manual, inconsistent, and disposable — someone types notes during the meeting (or nobody does), the notes live in one person's inbox, and nothing connects one meeting to the next. Action items get lost, decisions get re-litigated, and producing a summary or slide deck afterward means starting from scratch. CMIS solves this by treating "what was discussed" as structured, reusable data rather than a one-off text file.
+Meeting documentation today is manual, inconsistent, and disposable — someone types notes during a meeting (or nobody does), the notes live in a single file that is never revisited, and nothing connects one meeting to the next. Action items get lost, decisions get re-litigated, and producing a summary or slide deck means starting from scratch every time.
+
+CMIS solves this **for the individual** by treating "what was discussed" as structured, reusable personal data rather than one-off text files. A person who attends many meetings — a student, a professional, a researcher — gets a searchable personal knowledge base that grows with every recording they upload.
 
 ---
 
 ## 3. Objectives
 
 ### Primary Objective
-Develop an AI-based system that automatically transcribes, structures, and summarizes meetings, calls, and lectures, and generates multiple documentation formats from a single, persistent understanding of the discussion.
+Develop an AI-based personal tool that automatically transcribes, structures, and summarizes a single user's meetings, calls, and lectures, and generates multiple documentation formats from a persistent, local understanding of those discussions.
 
 ### Specific Objectives
-- Convert recorded or live meeting audio into an accurate, speaker-labelled transcript
-- Segment transcripts into topics and identify recurring discussion points
+- Convert a user's recorded meeting audio into an accurate, speaker-labelled transcript
+- Segment transcripts into topics and identify recurring discussion points across the user's own meetings
 - Extract action items, decisions, and urgency levels from natural conversation
-- Maintain a persistent, searchable context store across multiple meetings
+- Maintain a persistent, searchable personal context store across the user's multiple meetings
 - Automatically generate minutes of meeting, summaries, and presentations on demand
 
 ---
@@ -34,15 +38,18 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 ## 4. Scope
 
 **In scope:**
-- Post-session processing of recorded/uploaded audio (meetings, calls, lectures)
+- Post-session processing of recorded/uploaded audio (meetings, calls, lectures) belonging to one user
 - English and commonly used Indian-accented speech; limited regional-language support depending on the speech engine
-- Speaker diarization (voice-based labelling, e.g., Speaker 1, Speaker 2)
-- Multi-format output generation from one shared context
+- Speaker diarization (voice-based labelling, e.g., Speaker 1, Speaker 2) within a single recording
+- Multi-format output generation from one shared personal context store
+- Local user account (single account, single device — no sharing or multi-user access)
 
 **Out of scope (current phase):**
 - Live, real-time transcription during an ongoing session (future extension)
 - Video analysis, facial recognition, or biometric speaker identification
 - Real-time translation across languages
+- Multi-user collaboration, meeting sharing, or team workspaces
+- Cloud sync or cross-device access
 
 ---
 
@@ -50,12 +57,12 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 
 | # | Module | Responsibility |
 |---|---|---|
-| 1 | **Audio Ingestion** | Accepts uploaded/recorded audio or video, validates format, extracts audio stream, captures session metadata |
+| 1 | **Audio Ingestion** | Accepts uploaded audio or video, validates format, extracts audio stream, captures session metadata |
 | 2 | **Transcription & Diarization** | Converts audio to a time-aligned, speaker-labelled transcript using an ASR engine |
-| 3 | **NLP Structuring** | Topic segmentation, action-item/decision classification, urgency scoring, recurring-topic detection (LSH) |
-| 4 | **Context Store** | Persistent, queryable database of every processed meeting's structured context |
-| 5 | **Report & Presentation Generation** | Produces MoM, summaries, agendas, and slide decks on demand from the context store |
-| 6 | **Dashboard & Visualization** | User interface to browse meetings, search context, track action-item status, view statistics |
+| 3 | **NLP Structuring** | Topic segmentation, action-item/decision classification, urgency scoring, recurring-topic detection (LSH) across the user's own past meetings |
+| 4 | **Context Store** | Persistent local database of every meeting the user has processed, with structured context |
+| 5 | **Report & Presentation Generation** | Produces MoM, summaries, and slide decks on demand from the personal context store |
+| 6 | **Dashboard & Visualization** | Personal interface to browse meetings, search context, track action-item status, view recurring topics |
 
 ---
 
@@ -71,11 +78,11 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 | Embeddings & Similarity | sentence-transformers | Apache 2.0 |
 | Recurring-topic detection | datasketch (MinHash/LSH) | MIT |
 | Backend | FastAPI | MIT |
-| Frontend | React (Vite) + Tailwind CSS | MIT |
-| Database (dev) | SQLite | Public Domain |
-| Database (integrated/deployed) | PostgreSQL | PostgreSQL License |
-| Real-time comms | WebSockets + Redis | BSD |
-| Document/Slide generation | python-docx, pptxgenjs | MIT |
+| Frontend | React (Vite) | MIT |
+| Database | SQLite (local, single-file) | Public Domain |
+| Real-time comms | WebSockets (built into FastAPI) | — |
+| Document generation | python-docx, python-pptx | MIT |
+| Auth | JWT (python-jose + passlib) | MIT |
 | Containerization | Docker + Docker Compose | Free (individual/student use) |
 | Version control | Git + GitHub | Free |
 
@@ -83,17 +90,15 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 
 | Tool | Purpose | Note |
 |---|---|---|
-| Sarvam AI | Improved Indian-accent/regional-language transcription | Free tier with quota limits — evaluated alternative, not core dependency |
+| Sarvam AI | Improved Indian-accent/regional-language transcription | Free tier with quota limits — optional swap-in, not a core dependency |
 | Google Colab | Free GPU for model testing | Session/GPU limits apply |
-| Supabase / Neon | Free managed cloud PostgreSQL for shared team database | Free tier storage cap |
-| Render / Railway | Free hosting for demo deployment | Sleeps on inactivity |
 
 ---
 
 ## 7. Database Strategy
 
-- **Local development:** SQLite — zero setup, file-based, ideal while each member builds/tests their module independently
-- **Team integration / deployment:** PostgreSQL (via Docker locally, or Supabase/Neon free tier for a shared cloud instance) — required once multiple modules read/write concurrently
+- **SQLite only** — a single local `.db` file on the user's machine. Zero setup, zero cloud, zero sharing. All the user's meeting data stays private on their device.
+- The schema includes a `user_id` field on all records (linked to the single local account) so the data model remains clean and extendable if multi-user support were ever added in a future phase.
 
 ---
 
@@ -115,7 +120,7 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 |---|---|
 | **Technical** | Feasible — mature open-source ASR (Whisper), NLP (spaCy, scikit-learn), and web frameworks (FastAPI, React) are well-documented and require no specialized hardware |
 | **Economic** | Feasible — entirely open-source/free-tier stack, zero licensing cost, suitable for academic development |
-| **Operational** | Feasible — end users interact only with a dashboard and generated documents; no technical expertise required to operate |
+| **Operational** | Feasible — the user interacts only with a local dashboard and generated documents; no technical expertise required to operate beyond initial setup |
 
 ---
 
@@ -124,7 +129,7 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 **Techniques used:**
 - Study of existing meeting-transcription and note-taking tools
 - Review of academic literature on meeting summarization and diarization
-- Analysis of recurring documentation needs within student project teams
+- Analysis of recurring documentation needs faced by individual students and professionals
 - Discussion with faculty guide
 
 **Comparison with existing applications:**
@@ -132,10 +137,11 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 | Feature | Existing Applications | CMIS (Proposed) |
 |---|---|---|
 | Meeting Documentation | Manual note-taking | Automated, AI-generated |
-| Action Item Tracking | Not available | Available, with owner & urgency |
-| Output Formats | Single text note | MoM, presentation, summary, agenda |
-| Cross-Meeting Context | Not retained | Persistent, searchable context store |
-| Recurring Topic Detection | Not available | Available (LSH-based similarity) |
+| Action Item Tracking | Not available | Available, with urgency level |
+| Output Formats | Single text note | MoM, presentation, summary |
+| Cross-Meeting Context | Not retained | Persistent personal context store |
+| Recurring Topic Detection | Not available | Available (LSH-based similarity across your own meetings) |
+| Data Privacy | Often cloud-stored | Fully local — your data stays on your device |
 
 ---
 
@@ -157,30 +163,34 @@ Develop an AI-based system that automatically transcribes, structures, and summa
 
 | Member | Responsibility |
 |---|---|
-| Desai Karansinh (23IT402) | Transcription & diarization module, speech-to-text integration, overall system architecture and backend |
-| Krunalkumar Rohit (23IT419) | NLP structuring module — topic segmentation, action-item/decision classification, recurring-topic detection |
-| Dev Chavda (23IT441) | Context store design, database schema, report & presentation generation module |
+| Desai Karansinh (23IT402) | Transcription & diarization module, speech-to-text integration, overall system architecture, backend, and local authentication |
+| Krunalkumar Rohit (23IT419) | NLP structuring module — topic segmentation, action-item/decision classification, recurring-topic detection across personal meetings |
+| Dev Chavda (23IT441) | Context store design, local SQLite schema, report & presentation generation module |
 | Saksham Sharma (23IT553) | Dashboard & visualization module, frontend development, testing, documentation |
 
 ---
 
 ## 13. Expected Outcomes
 
-- Automated minutes of meeting
-- Structured, searchable meeting context
-- Action-item & decision tracking
+- Automated minutes of meeting generated from the user's own recordings
+- Structured, searchable personal meeting context
+- Personal action-item & decision tracking across all your meetings
 - On-demand report/slide generation
+- Recurring topic detection across the user's meeting history
 - Reduced manual documentation effort
-- Consistent, standardized meeting records
+- All data stays local — full privacy
+
+---
 
 ## 14. Future Scope
 
 - Live, real-time transcription mode
-- Cross-meeting knowledge graph
+- Cross-meeting personal knowledge graph
 - Expanded regional-language support
 - Mobile companion app
-- Calendar/LMS integration
-- Voice-based meeting-query assistant
+- Calendar integration (Google Calendar / Outlook)
+- Voice-based query assistant ("What did I agree to do last week?")
+- Optional cloud backup (user-controlled, opt-in only)
 
 ---
 

@@ -13,6 +13,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_optional_user
@@ -144,28 +145,52 @@ def list_meetings(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """Return all meetings ordered by date descending."""
-    query = db.query(Meeting)
-    if current_user:
-        query = query.filter(Meeting.user_id == current_user.id)
+    """Return all meetings for the authenticated user ordered by date descending."""
+    if not current_user:
+        return []
+
+    query = db.query(Meeting).outerjoin(Meeting.project).filter(
+        or_(
+            Meeting.user_id == current_user.id,
+            Project.user_id == current_user.id,
+        )
+    )
     return query.order_by(Meeting.date.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/{meeting_id}", response_model=MeetingDetail)
-def get_meeting(meeting_id: str, db: Session = Depends(get_db)):
+def get_meeting(
+    meeting_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """Return full meeting detail including speakers."""
     meeting = crud.get_meeting(db, meeting_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    if current_user and meeting.user_id and meeting.user_id != current_user.id:
+        if not (meeting.project and meeting.project.user_id == current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied.")
+
     return meeting
 
 
 @router.get("/{meeting_id}/transcript", response_model=List[SegmentOut])
-def get_transcript(meeting_id: str, db: Session = Depends(get_db)):
+def get_transcript(
+    meeting_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """Return the full speaker-labelled transcript for a meeting."""
     meeting = crud.get_meeting(db, meeting_id)
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    if current_user and meeting.user_id and meeting.user_id != current_user.id:
+        if not (meeting.project and meeting.project.user_id == current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied.")
+
     segments = crud.get_segments_for_meeting(db, meeting_id)
     return segments
 
@@ -179,6 +204,14 @@ def edit_transcript_segment(
     current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Edit a transcript segment text and record the change in edit history."""
+    meeting = crud.get_meeting(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    if current_user and meeting.user_id and meeting.user_id != current_user.id:
+        if not (meeting.project and meeting.project.user_id == current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied.")
+
     segment = db.query(TranscriptSegment).filter(
         TranscriptSegment.id == segment_id,
         TranscriptSegment.meeting_id == meeting_id
@@ -217,8 +250,20 @@ def edit_transcript_segment(
 
 
 @router.get("/{meeting_id}/transcript/history", response_model=List[TranscriptHistoryOut])
-def get_transcript_history(meeting_id: str, db: Session = Depends(get_db)):
+def get_transcript_history(
+    meeting_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """Get the full edit history/audit log for transcript segments of a meeting."""
+    meeting = crud.get_meeting(db, meeting_id)
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    if current_user and meeting.user_id and meeting.user_id != current_user.id:
+        if not (meeting.project and meeting.project.user_id == current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied.")
+
     history = db.query(TranscriptEditHistory).filter(
         TranscriptEditHistory.meeting_id == meeting_id
     ).order_by(TranscriptEditHistory.edited_at.desc()).all()
@@ -226,11 +271,19 @@ def get_transcript_history(meeting_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/{meeting_id}", status_code=status.HTTP_200_OK)
-def delete_meeting(meeting_id: str, db: Session = Depends(get_db)):
+def delete_meeting(
+    meeting_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
     """Delete a meeting and all associated transcript, context, and audio data."""
     meeting = db.query(Meeting).filter(Meeting.id == meeting_id).first()
     if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found.")
+
+    if current_user and meeting.user_id and meeting.user_id != current_user.id:
+        if not (meeting.project and meeting.project.user_id == current_user.id):
+            raise HTTPException(status_code=403, detail="Access denied.")
 
     # Store project_id before deleting meeting record
     project_id = meeting.project_id

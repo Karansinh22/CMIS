@@ -117,11 +117,11 @@ def list_projects(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """List all projects for the authenticated user (or all if unauthenticated in dev mode)."""
-    query = db.query(Project)
-    if current_user:
-        query = query.filter(Project.user_id == current_user.id)
-    
+    """List all projects for the authenticated user."""
+    if not current_user:
+        return []
+
+    query = db.query(Project).filter(Project.user_id == current_user.id)
     projects = query.order_by(Project.updated_at.desc()).all()
 
     result = []
@@ -151,11 +151,15 @@ def list_projects(
 def get_project_detail(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Get full project details, associated meetings, and cumulative context summary."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    if current_user and project.user_id and project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
 
     # Refresh synthesis if needed
     ps = project.summary
@@ -222,6 +226,9 @@ def upload_project_meeting(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
+    if current_user and project.user_id and project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
     meeting_title = title or file.filename or f"Meeting {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
 
     # Save audio file
@@ -265,8 +272,16 @@ def upload_project_meeting(
 def retrigger_project_synthesis(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Manually re-trigger context synthesis for a project."""
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if current_user and project.user_id and project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
+
     ps = synthesize_project_context(project_id, db)
     return {"message": "Project context re-synthesized successfully.", "last_updated": ps.last_updated.isoformat()}
 
@@ -275,11 +290,15 @@ def retrigger_project_synthesis(
 def delete_project(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
 ):
     """Delete a project and its associated meetings."""
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    if current_user and project.user_id and project.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access denied.")
 
     db.delete(project)
     db.commit()
