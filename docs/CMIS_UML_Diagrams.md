@@ -6,58 +6,80 @@ All diagrams below use **Mermaid** syntax. They render natively on GitHub, GitLa
 
 ## 1. Use Case Diagram
 
-Shows the single actor (the User) and all interactions they have with CMIS.
+Single actor (User) on the left; all use cases on the right, grouped by subsystem.
 
 ```mermaid
-graph TB
+graph LR
     User((User))
 
-    subgraph CMIS["Contextual Meeting Intelligence System (Personal Tool)"]
-        UC1([Upload Meeting Recording])
-        UC2([View Transcript])
-        UC3([Generate Minutes of Meeting])
-        UC4([Generate Presentation / Summary])
-        UC5([Track Personal Action Items])
-        UC6([Search Personal Context Store])
-        UC7([View Dashboard & Meeting History])
-        UC8([Detect Recurring Topics Across My Meetings])
-        UC9([Register / Login to Local Account])
+    subgraph Account
+        direction TB
+        UC_REG([Register])
+        UC_LOG([Login])
     end
 
-    User --> UC9
-    User --> UC1
-    User --> UC2
-    User --> UC3
-    User --> UC4
-    User --> UC5
-    User --> UC6
-    User --> UC7
-    User --> UC8
+    subgraph MeetingInput["Meeting Input"]
+        direction TB
+        UC_UP([Upload Recording])
+    end
+
+    subgraph AutoProcessing["Automatic Processing"]
+        direction TB
+        UC_TR([Transcription and Diarization])
+        UC_NLP([NLP Structuring])
+        UC_REC([Detect Recurring Topics])
+        UC_STORE([Store Meeting Context])
+    end
+
+    subgraph GeneratedOutputs["Generated Outputs"]
+        direction TB
+        UC_VT([View Transcript])
+        UC_MOM([Minutes of Meeting])
+        UC_SUM([Executive Summary])
+        UC_PPT([Generate Presentation])
+        UC_AGN([Next Meeting Agenda])
+        UC_REP([View Meeting Reports])
+    end
+
+    subgraph ActionsInsights["Actions and Insights"]
+        direction TB
+        UC_AI([Track Action Items])
+        UC_SR([Review Action Item Status])
+        UC_SC([Search Meeting Context])
+        UC_DT([Dashboard and Trends])
+        UC_RT([Recurring Topics])
+    end
+
+    User --> Account
+    User --> MeetingInput
+    User --> GeneratedOutputs
+    User --> ActionsInsights
+    UC_UP -.->|triggers| AutoProcessing
 ```
 
 ---
 
 ## 2. Class Diagram
 
-Core domain model of CMIS.
+Core domain model of CMIS — Report subtypes use inheritance as per the reference diagram.
 
 ```mermaid
 classDiagram
     class User {
         +UUID id
+        +string name
         +string email
-        +string hashed_password
-        +datetime created_at
+        +string role
         +login()
-        +getMyMeetings()
+        +register()
     }
 
     class Meeting {
         +UUID id
-        +UUID user_id
         +string title
         +datetime date
         +string status
+        +List~TranscriptSegment~ transcript
         +getTranscript()
         +getContext()
     }
@@ -68,6 +90,15 @@ classDiagram
         +float startTime
         +float endTime
         +string speakerLabel
+        +string speakerName
+    }
+
+    class ContextEntry {
+        +UUID id
+        +Meeting meeting
+        +List~Topic~ topics
+        +List~ActionItem~ actionItems
+        +List~Decision~ decisions
     }
 
     class Topic {
@@ -82,7 +113,7 @@ classDiagram
         +string description
         +string owner
         +string urgency
-        +bool resolved
+        +string status
     }
 
     class Decision {
@@ -91,29 +122,47 @@ classDiagram
         +datetime decidedOn
     }
 
-    class ContextEntry {
-        +UUID id
-        +Meeting meeting
-        +List~Topic~ topics
-        +List~ActionItem~ actionItems
-        +List~Decision~ decisions
-    }
-
     class Report {
         +UUID id
-        +string format
+        +string outputType
         +datetime generatedOn
         +generate()
     }
 
-    User "1" --> "many" Meeting : owns
-    Meeting "1" --> "many" TranscriptSegment : contains
-    Meeting "1" --> "1" ContextEntry : produces
-    ContextEntry "1" --> "many" Topic : includes
-    ContextEntry "1" --> "many" ActionItem : includes
-    ContextEntry "1" --> "many" Decision : includes
-    Meeting "1" --> "many" Report : generates
-    Topic "0..1" --> "0..1" Topic : "recurs as (same user's past meetings)"
+    class MoMReport {
+        +generate()
+    }
+
+    class SummaryReport {
+        +generate()
+    }
+
+    class ActionTrackerReport {
+        +generate()
+    }
+
+    class AgendaReport {
+        +generate()
+    }
+
+    class PresentationReport {
+        +generate()
+    }
+
+    User "1" --> "*" Meeting : owns
+    Meeting "1" *-- "*" TranscriptSegment : contains
+    Meeting "1" --> "1" ContextEntry : generates
+    Meeting "1" --> "*" Report : produces
+    TranscriptSegment "*" --> "1" ContextEntry : feeds into
+    ContextEntry "1" *-- "*" Topic : has
+    ContextEntry "1" *-- "*" ActionItem : has
+    ContextEntry "1" *-- "*" Decision : has
+    Topic "0..1" --> "0..1" Topic : links to previous
+    Report <|-- MoMReport
+    Report <|-- SummaryReport
+    Report <|-- ActionTrackerReport
+    Report <|-- AgendaReport
+    Report <|-- PresentationReport
 ```
 
 ---
@@ -250,24 +299,32 @@ graph TB
 
 ## 7. Entity–Relationship (ER) Diagram
 
-Database schema for the personal context store.
+Database schema for the personal context store — includes ISA inheritance for Report subtypes as per the reference diagram.
 
 ```mermaid
 erDiagram
-    USER ||--o{ MEETING : owns
+    USER ||--o{ MEETING : creates
     MEETING ||--o{ TRANSCRIPT_SEGMENT : contains
     MEETING ||--|| CONTEXT_ENTRY : produces
-    MEETING ||--o{ REPORT : generates
-    CONTEXT_ENTRY ||--o{ TOPIC : includes
+    TRANSCRIPT_SEGMENT }o--|| CONTEXT_ENTRY : feeds_into
+    CONTEXT_ENTRY ||--o{ REPORT : includes
     CONTEXT_ENTRY ||--o{ ACTION_ITEM : includes
     CONTEXT_ENTRY ||--o{ DECISION : includes
-    TOPIC ||--o{ TOPIC : "recurs as (user's own meetings)"
+    CONTEXT_ENTRY ||--o{ TOPIC : includes
+    TOPIC ||--o| TOPIC : links_to_previous
+    REPORT ||--o| MOM_REPORT : ISA
+    REPORT ||--o| SUMMARY_REPORT : ISA
+    REPORT ||--o| ACTION_TRACKER_REPORT : ISA
+    REPORT ||--o| AGENDA_REPORT : ISA
+    REPORT ||--o| PRESENTATION_REPORT : ISA
 
     USER {
-        uuid id PK
+        uuid user_id PK
+        string full_name
         string email
-        string hashed_password
-        datetime created_at
+        string password_hash
+        string role
+        string status
     }
     MEETING {
         uuid id PK
@@ -275,12 +332,12 @@ erDiagram
         string title
         datetime date
         string status
-        string audio_path
     }
     TRANSCRIPT_SEGMENT {
         uuid id PK
         uuid meeting_id FK
         string speaker_label
+        string speaker_name
         string text
         float start_time
         float end_time
@@ -292,10 +349,10 @@ erDiagram
     TOPIC {
         uuid id PK
         uuid context_id FK
+        uuid previous_topic_id FK
         string title
         string summary
         bool is_recurring
-        uuid previous_topic_id FK
     }
     ACTION_ITEM {
         uuid id PK
@@ -303,7 +360,7 @@ erDiagram
         string description
         string owner
         string urgency
-        bool resolved
+        string status
     }
     DECISION {
         uuid id PK
@@ -313,10 +370,35 @@ erDiagram
     }
     REPORT {
         uuid id PK
-        uuid meeting_id FK
+        uuid context_id FK
+        string output_type
         string format
         datetime generated_on
-        string file_path
+    }
+    MOM_REPORT {
+        uuid id PK
+        uuid context_id FK
+        datetime generated_on
+    }
+    SUMMARY_REPORT {
+        uuid id PK
+        uuid context_id FK
+        datetime generated_on
+    }
+    ACTION_TRACKER_REPORT {
+        uuid id PK
+        uuid context_id FK
+        datetime generated_on
+    }
+    AGENDA_REPORT {
+        uuid id PK
+        uuid context_id FK
+        datetime generated_on
+    }
+    PRESENTATION_REPORT {
+        uuid id PK
+        uuid context_id FK
+        datetime generated_on
     }
 ```
 
