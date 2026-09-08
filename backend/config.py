@@ -27,6 +27,38 @@ class Settings(BaseSettings):
     whisper_model: str = "small"          # tiny | base | small | medium | large-v2
     asr_engine: str = "whisper"           # whisper | sarvam
     sarvam_api_key: str = ""
+    # "auto" picks CUDA when faster-whisper can see a GPU, otherwise CPU.
+    whisper_device: str = "auto"          # auto | cpu | cuda
+    # "auto" → int8 on CPU, float16 on CUDA. Override e.g. "int8_float16".
+    whisper_compute_type: str = "auto"
+    # beam_size=1 (greedy) is ~2× faster than 5 with a small accuracy cost.
+    whisper_beam_size: int = 1
+    # 0 → use all CPU cores.
+    whisper_cpu_threads: int = 0
+    whisper_vad_filter: bool = True
+    # Conditioning on previous text slows decoding and causes repetition loops.
+    whisper_condition_on_previous_text: bool = False
+    # Load Whisper (and pyannote if enabled) in a background thread at startup
+    # so the first upload doesn't pay the model-load cost.
+    preload_models: bool = True
+
+    # ── Live transcript streaming ────────────────────────────────────────────
+    # Segments are persisted + pushed over the WebSocket as soon as either
+    # threshold is reached (whichever comes first).
+    transcript_flush_segments: int = 3
+    transcript_flush_seconds: float = 1.5
+
+    # ── NLP extraction engine ────────────────────────────────────────────────
+    # "local" → intent/context-aware rule engine (offline, default)
+    # "llm"   → LLM extraction (Anthropic or Ollama) with local fallback
+    nlp_engine: str = "local"
+    llm_provider: str = "anthropic"       # anthropic | ollama
+    anthropic_api_key: str = ""           # or set ANTHROPIC_API_KEY in the env
+    llm_model: str = "claude-opus-5"      # anthropic model id, or ollama model name (e.g. llama3.1)
+    ollama_base_url: str = "http://localhost:11434"
+    llm_timeout_seconds: float = 120.0
+    # Minimum confidence (0–1) an extracted item needs to be stored.
+    extraction_min_confidence: float = 0.45
 
     # ── Diarization ──────────────────────────────────────────────────────────
     diarization_enabled: bool = True

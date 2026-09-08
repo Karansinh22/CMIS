@@ -52,10 +52,19 @@ class TranscriptHistoryOut(BaseModel):
 
 def _process_meeting(audio_path: Path, meeting_id: str) -> None:
     """Background task: run ingestion then NLP pipeline in a background thread pool."""
+    from jobs.worker import update_status
+
     bg_db = SessionLocal()
     try:
-        run_ingestion(audio_path, meeting_id, bg_db)
-        run_nlp(meeting_id, bg_db)
+        try:
+            run_ingestion(audio_path, meeting_id, bg_db)
+            run_nlp(meeting_id, bg_db)
+        except Exception as exc:  # noqa: BLE001
+            # Both stages already record the error status; make sure the client
+            # is told even if something failed outside of them.
+            logger.error("Processing failed for meeting %s: %s", meeting_id, exc)
+            update_status(meeting_id, "error", str(exc))
+            return
 
         # If meeting belongs to a project, re-synthesize project context
         meeting = bg_db.query(Meeting).filter(Meeting.id == meeting_id).first()
@@ -132,6 +141,8 @@ async def upload_meeting(
     db.commit()
 
     # Queue background processing
+    from jobs.worker import update_status
+    update_status(meeting.id, "queued", "Queued for processing…", progress=0.0)
     background_tasks.add_task(_process_meeting, dest_path, meeting.id)
 
     db.refresh(meeting)

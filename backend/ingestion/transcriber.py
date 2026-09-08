@@ -1,14 +1,30 @@
 """
 transcriber.py — Wraps faster-whisper for speech-to-text transcription.
 
-Returns word-level (or segment-level) transcript with timestamps.
+Two entry points:
+
+    transcribe_stream(path)  → generator yielding RawSegment objects as soon as
+                               Whisper decodes them (used for live transcript
+                               streaming to the dashboard).
+    transcribe(path)         → convenience wrapper returning the full list.
+
+Performance notes
+-----------------
+* The model is loaded once per process (``_get_model``) and can be warmed up at
+  startup via ``preload()``.
+* ``WHISPER_DEVICE=auto`` uses CUDA when faster-whisper can see a GPU.
+* ``WHISPER_BEAM_SIZE=1`` (greedy decoding) is roughly twice as fast as beam 5.
+* ``condition_on_previous_text=False`` avoids the slow "repetition loop"
+  failure mode on long recordings.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import threading
 from pathlib import Path
-from typing import List
+from typing import Callable, Iterator, List, Optional
 
 from config import settings
 
@@ -29,14 +45,41 @@ class RawSegment:
         return f"RawSegment(start={self.start:.2f}, end={self.end:.2f}, text={self.text!r})"
 
 
-# ── Transcriber ───────────────────────────────────────────────────────────────
+# ── Model management ──────────────────────────────────────────────────────────
 
 _model_cache: dict = {}   # {model_name: WhisperModel} — loaded once per process
+_model_lock = threading.Lock()
+
+
+def _resolve_device() -> tuple[str, str]:
+    """Return (device, compute_type) honouring the 'auto' settings."""
+    device = (settings.whisper_device or "auto").lower()
+    compute = (settings.whisper_compute_type or "auto").lower()
+
+    if device == "auto":
+        device = "cpu"
+        try:
+            import ctranslate2  # bundled with faster-whisper
+            if ctranslate2.get_cuda_device_count() > 0:
+                device = "cuda"
+        except Exception:  # noqa: BLE001
+            pass
+
+    if compute == "auto":
+        compute = "float16" if device == "cuda" else "int8"
+
+    return device, compute
 
 
 def _get_model(model_name: str):
-    """Lazy-load and cache the Whisper model."""
-    if model_name not in _model_cache:
+    """Lazy-load and cache the Whisper model (thread-safe)."""
+    if model_name in _model_cache:
+        return _model_cache[model_name]
+
+    with _model_lock:
+        if model_name in _model_cache:
+            return _model_cache[model_name]
+
         try:
             from faster_whisper import WhisperModel
         except ImportError:
@@ -44,94 +87,112 @@ def _get_model(model_name: str):
                 "faster-whisper is not installed. Run: pip install faster-whisper"
             )
 
-        logger.info("Loading Whisper model '%s' (first run may download weights)…", model_name)
-        # device="cpu" works on any laptop; use device="cuda" if a GPU is present
-        _model_cache[model_name] = WhisperModel(model_name, device="cpu", compute_type="int8")
+        device, compute_type = _resolve_device()
+        cpu_threads = settings.whisper_cpu_threads or (os.cpu_count() or 4)
+
+        logger.info(
+            "Loading Whisper model '%s' on %s/%s (first run may download weights)…",
+            model_name, device, compute_type,
+        )
+        try:
+            model = WhisperModel(
+                model_name, device=device, compute_type=compute_type, cpu_threads=cpu_threads
+            )
+        except Exception as exc:  # noqa: BLE001
+            if device != "cpu":
+                logger.warning("Could not load Whisper on %s (%s); falling back to CPU.", device, exc)
+                model = WhisperModel(model_name, device="cpu", compute_type="int8", cpu_threads=cpu_threads)
+            else:
+                raise
+        _model_cache[model_name] = model
         logger.info("Whisper model '%s' ready.", model_name)
 
     return _model_cache[model_name]
 
 
+def preload(model_name: Optional[str] = None) -> None:
+    """Warm up the Whisper model (called from a background thread at startup)."""
+    try:
+        _get_model(model_name or settings.whisper_model)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Whisper preload failed: %s", exc)
+
+
 def _get_audio_duration(audio_path: Path) -> float:
-    """Return total duration in seconds using python wave module."""
+    """Return total duration in seconds (wave module, ffprobe fallback)."""
     try:
         import wave
         with wave.open(str(audio_path), "rb") as wf:
             return wf.getnframes() / float(wf.getframerate())
-    except Exception:
-        return 0.0
+    except Exception:  # noqa: BLE001
+        try:
+            from utils.audio import get_duration_seconds
+            return get_duration_seconds(audio_path)
+        except Exception:  # noqa: BLE001
+            return 0.0
 
 
-def transcribe(audio_path: Path, model_name: str | None = None) -> List[RawSegment]:
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def transcribe_stream(
+    audio_path: Path,
+    model_name: Optional[str] = None,
+    on_progress: Optional[Callable[[float], None]] = None,
+) -> Iterator[RawSegment]:
     """
-    Transcribe an audio file using faster-whisper.
-    Automatically chunks audio files longer than 3 minutes to prevent memory allocation errors.
+    Transcribe an audio file, yielding segments as Whisper produces them.
 
     Args:
-        audio_path: Path to a 16 kHz mono WAV.
-        model_name: Override the model from settings.
+        audio_path:  Path to a 16 kHz mono WAV.
+        model_name:  Override the model from settings.
+        on_progress: Optional callback receiving a 0–1 fraction of audio decoded.
 
-    Returns:
-        List of RawSegment objects sorted by start time.
+    Yields:
+        RawSegment objects in chronological order.
     """
     from utils.audio import ensure_ffmpeg
     ensure_ffmpeg()
 
     model_name = model_name or settings.whisper_model
     model = _get_model(model_name)
-
     duration = _get_audio_duration(audio_path)
-    chunk_size = 180  # 3 minutes
 
-    if duration > chunk_size:
-        logger.info("Long audio detected (%.1fs). Transcribing in 3-minute chunks…", duration)
-        raw_segments: List[RawSegment] = []
+    logger.info("Transcribing %s with model '%s' (%.0fs of audio)…", audio_path.name, model_name, duration)
 
-        import subprocess
-        for start_sec in range(0, int(duration), chunk_size):
-            chunk_file = audio_path.parent / f"{audio_path.stem}_chk_{start_sec}.wav"
-            cmd = [
-                "ffmpeg", "-y", "-ss", str(start_sec), "-t", str(chunk_size),
-                "-i", str(audio_path), "-c", "copy", str(chunk_file)
-            ]
-            try:
-                subprocess.run(cmd, capture_output=True, check=True)
-                segments_iter, _ = model.transcribe(
-                    str(chunk_file),
-                    beam_size=3,
-                    language="en",
-                    vad_filter=True,
-                )
-                for seg in segments_iter:
-                    if seg.text.strip():
-                        raw_segments.append(
-                            RawSegment(seg.text, seg.start + start_sec, seg.end + start_sec)
-                        )
-            except Exception as exc:
-                logger.warning("Error processing chunk starting at %ds: %s", start_sec, exc)
-            finally:
-                chunk_file.unlink(missing_ok=True)
-
-        logger.info("Chunked transcription complete: %d segments.", len(raw_segments))
-        return raw_segments
-
-    logger.info("Transcribing %s with model '%s'…", audio_path, model_name)
     segments_iter, info = model.transcribe(
         str(audio_path),
-        beam_size=3,
-        language="en",   # auto-detect can be slow; set None to enable auto-detection
-        vad_filter=True, # Voice Activity Detection filter — reduces hallucinations
+        beam_size=max(1, int(settings.whisper_beam_size)),
+        language="en",   # set None to enable (slower) auto-detection
+        vad_filter=bool(settings.whisper_vad_filter),
+        condition_on_previous_text=bool(settings.whisper_condition_on_previous_text),
     )
 
-    raw_segments: List[RawSegment] = []
+    count = 0
     for seg in segments_iter:
-        if seg.text.strip():
-            raw_segments.append(RawSegment(seg.text, seg.start, seg.end))
+        text = (seg.text or "").strip()
+        if not text:
+            continue
+        count += 1
+        if on_progress and duration > 0:
+            try:
+                on_progress(min(1.0, float(seg.end) / duration))
+            except Exception:  # noqa: BLE001
+                pass
+        yield RawSegment(text, float(seg.start), float(seg.end))
 
+    lang = getattr(info, "language", "?")
+    prob = getattr(info, "language_probability", 0.0) or 0.0
     logger.info(
         "Transcription complete: %d segments, detected language '%s' (prob=%.2f)",
-        len(raw_segments),
-        info.language,
-        info.language_probability,
+        count, lang, float(prob),
     )
-    return raw_segments
+    if on_progress:
+        try:
+            on_progress(1.0)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def transcribe(audio_path: Path, model_name: Optional[str] = None) -> List[RawSegment]:
+    """Transcribe an audio file and return all segments (non-streaming wrapper)."""
+    return list(transcribe_stream(audio_path, model_name=model_name))

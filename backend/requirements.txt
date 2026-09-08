@@ -25,6 +25,9 @@ spacy==3.7.4
 scikit-learn==1.4.2
 sentence-transformers==3.0.0
 
+# ── Optional: LLM extraction engine (NLP_ENGINE=llm, LLM_PROVIDER=anthropic) ─
+# anthropic>=0.50
+
 # ── Recurring-topic detection ────────────────────────────────────────────────
 datasketch==1.6.5
 

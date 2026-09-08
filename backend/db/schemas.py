@@ -77,6 +77,10 @@ class ActionItemBase(BaseModel):
     owner: Optional[str] = None
     urgency: str = "low"
     resolved: bool = False
+    due: Optional[str] = None
+    evidence: Optional[str] = None
+    confidence: float = 1.0
+    segment_index: Optional[int] = None
 
 
 class ActionItemCreate(ActionItemBase):
@@ -87,6 +91,8 @@ class ActionItemUpdate(BaseModel):
     resolved: Optional[bool] = None
     owner: Optional[str] = None
     urgency: Optional[str] = None
+    description: Optional[str] = None
+    due: Optional[str] = None
 
 
 class ActionItemOut(ActionItemBase):
@@ -99,6 +105,10 @@ class ActionItemOut(ActionItemBase):
 
 class DecisionBase(BaseModel):
     description: str
+    rationale: Optional[str] = None
+    evidence: Optional[str] = None
+    confidence: float = 1.0
+    segment_index: Optional[int] = None
 
 
 class DecisionCreate(DecisionBase):

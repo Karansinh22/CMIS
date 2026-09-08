@@ -65,6 +65,21 @@ async def on_startup():
         logger.warning("FFmpeg not found!")
     init_db()
     logger.info("Database tables verified / created.")
+    if settings.preload_models:
+        import threading
+        from ingestion.transcriber import preload as preload_whisper
+
+        def _warm_up():
+            preload_whisper()
+            if settings.diarization_enabled and settings.hf_token:
+                try:
+                    from ingestion.diarizer import preload as preload_diarizer
+                    preload_diarizer()
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("Diarization preload skipped: %s", exc)
+
+        threading.Thread(target=_warm_up, name="model-warmup", daemon=True).start()
+        logger.info("Warming up speech models in the background (PRELOAD_MODELS=true).")
     logger.info("Upload directory: %s", settings.upload_dir.resolve())
     logger.info("Swagger UI at http://localhost:8000/docs")
 

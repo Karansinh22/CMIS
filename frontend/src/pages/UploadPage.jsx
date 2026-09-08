@@ -12,6 +12,7 @@ import {
 import { uploadMeeting, listProjects } from '../api';
 import { useStatusSocket } from '../hooks/useStatusSocket';
 import ProcessingStatus from '../components/ProcessingStatus';
+import LiveTranscript from '../components/LiveTranscript';
 
 const ACCEPTED = ['.mp3', '.wav', '.m4a', '.mp4', '.ogg', '.flac', '.webm'];
 
@@ -90,6 +91,7 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [meetingId, setMeetingId] = useState(null);
   const [wsStatus, setWsStatus] = useState(null);
+  const [liveSegments, setLiveSegments] = useState([]);
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
 
@@ -103,8 +105,17 @@ export default function UploadPage() {
   }, []);
 
   useStatusSocket(meetingId, (event) => {
-    if (event.status === 'ping') return;
-    setWsStatus(event);
+    if (event.type === 'segments') {
+      // Transcript lines arrive while Whisper is still running — show them immediately.
+      setLiveSegments((prev) => {
+        const seen = new Set(prev.map((s) => s.id));
+        const fresh = (event.segments || []).filter((s) => !seen.has(s.id));
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+      if (event.progress != null) setWsStatus((prev) => ({ ...(prev || {}), progress: event.progress }));
+      return;
+    }
+    if (event.type === 'status') setWsStatus(event);
   });
 
   const selectFile = useCallback((f) => {
@@ -146,7 +157,8 @@ export default function UploadPage() {
     try {
       const res = await uploadMeeting(file, title.trim(), opts, setUploadPct);
       setMeetingId(res.data.id);
-      setWsStatus({ status: 'queued', message: 'Queued for pipeline execution...' });
+      setLiveSegments([]);
+      setWsStatus({ status: 'queued', message: 'Queued for pipeline execution...', progress: 0 });
     } catch (err) {
       setError(err.response?.data?.detail || 'Upload failed. Is the backend server running?');
       setUploading(false);
@@ -155,6 +167,7 @@ export default function UploadPage() {
 
   const done = wsStatus?.status === 'done';
   const hasError = wsStatus?.status === 'error';
+  const transcribing = wsStatus?.status === 'transcribing' || wsStatus?.status === 'queued';
 
   return (
     <div className="page-wrapper max-w-2xl space-y-6">
@@ -170,7 +183,12 @@ export default function UploadPage() {
       {/* ── Post-Upload Pipeline Status View ── */}
       {meetingId ? (
         <div className="space-y-4">
-          <ProcessingStatus status={wsStatus?.status || 'queued'} message={wsStatus?.message} />
+          <ProcessingStatus status={wsStatus?.status || 'queued'} message={wsStatus?.message} progress={wsStatus?.progress} />
+
+          {/* Transcript streams in while the audio is still being processed */}
+          {!hasError && (liveSegments.length > 0 || transcribing) && (
+            <LiveTranscript segments={liveSegments} live={!done} progress={wsStatus?.progress} />
+          )}
 
           {/* File summary bar */}
           <div className="card p-3 flex items-center gap-3">
@@ -182,9 +200,8 @@ export default function UploadPage() {
             <span className="badge badge-gray text-[10px] uppercase font-semibold">{summaryType}</span>
           </div>
 
-          {(done || hasError) && (
-            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
-              {done && (
+          <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+            {done ? (
                 <button
                   onClick={() => navigate(`/meetings/${meetingId}`)}
                   className="btn-primary flex-1 justify-center py-2.5 text-xs"
@@ -193,18 +210,27 @@ export default function UploadPage() {
                   <span>Open Intelligence Report</span>
                   <ArrowRight size={13} />
                 </button>
+              ) : !hasError && (
+                <button
+                  onClick={() => navigate(`/meetings/${meetingId}`)}
+                  className="btn-secondary flex-1 justify-center py-2.5 text-xs"
+                  title="The meeting page keeps updating while processing continues"
+                >
+                  <span>Open meeting page (keeps updating)</span>
+                  <ArrowRight size={13} />
+                </button>
               )}
               <button
                 onClick={() => {
                   setFile(null); setTitle(''); setMeetingId(null);
-                  setWsStatus(null); setUploading(false);
+                  setWsStatus(null); setUploading(false); setLiveSegments([]);
                 }}
                 className="btn-secondary flex-1 justify-center text-xs py-2.5"
+                title={done || hasError ? undefined : 'Processing continues on the server'}
               >
                 Upload Another Recording
               </button>
-            </div>
-          )}
+          </div>
         </div>
       ) : (
         /* ── Upload Form ── */

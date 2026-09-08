@@ -27,6 +27,7 @@ The transcription is just the input layer. The actual product is:
 | **Phase 3** | Context store (SQLite + CRUD layer) | ✅ Built |
 | **Phase 4** | Recurring-topic detection (MinHash/LSH) | ✅ Built |
 | **Phase 5** | User authentication (local account) | ✅ Built |
+| **Phase 5.5** | Live transcript streaming + context-aware decision/to-do extraction | ✅ Built (see [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)) |
 | Phase 6 | Report/presentation generation | 🔲 Planned |
 | Phase 7 | Polish & testing | 🔲 Planned |
 
@@ -80,7 +81,7 @@ Dashboard → **http://localhost:5173**
 
 1. **Register** a local account (your personal data, stored on your machine only).
 2. **Upload** a recording — any meeting, lecture, or call you attended.
-3. **Wait** while CMIS transcribes, identifies speakers, and structures the content.
+3. **Watch the transcript appear line by line** while CMIS is still transcribing; speaker labels update when diarization finishes, then decisions, action items and the summary are generated.
 4. **Browse** your personal context: topics discussed, action items you need to act on, decisions made.
 5. **Generate** a Minutes of Meeting document or summary on demand.
 6. **Track** recurring topics that keep coming up across your different meetings over time.
@@ -101,7 +102,7 @@ Dashboard → **http://localhost:5173**
 | `GET` | `/context/action-items/open` | All your open action items across meetings |
 | `PATCH` | `/context/action-items/{id}` | Resolve/reopen an action item |
 | `GET` | `/insights/recurring-topics` | Your recurring topics with history |
-| `WS` | `/ws/status/{meeting_id}` | Real-time processing status stream |
+| `WS` | `/ws/status/{meeting_id}` | Real-time event stream: `status` (with `progress`), `segments` (live transcript lines), `transcript_ready`, `context_ready` |
 
 ---
 
@@ -214,6 +215,37 @@ CMIS/
 ```
 
 ---
+
+## How the transcript streams
+
+```
+faster-whisper generator ──► every 3 segments / 1.5 s ──► SQLite insert ──► WS "segments" event ──► dashboard
+                                                                     │
+                                          diarization runs afterwards, re-labels the rows ──► WS "transcript_ready"
+```
+
+* A client that connects late fetches what is already stored via `GET /meetings/{id}/transcript` and then receives the rest live.
+* Tune with `TRANSCRIPT_FLUSH_SEGMENTS` / `TRANSCRIPT_FLUSH_SECONDS`.
+* Speed knobs: `WHISPER_MODEL`, `WHISPER_BEAM_SIZE` (1 = fastest), `WHISPER_DEVICE=auto` (uses CUDA if available), `PRELOAD_MODELS=true` (models load at startup).
+
+## How decisions and to-dos are extracted
+
+`nlp/intent.py` classifies each sentence by what it *does* in the conversation rather than by keywords:
+
+| Spoken | Result |
+|---|---|
+| "Let's go with Postgres for the main database." | **Decision:** Go with Postgres for the main database |
+| "We agreed to postpone the launch to March because QA isn't done." | **Decision:** Postpone the launch to March — *why:* QA isn't done |
+| "Should we use Redis?" / (other speaker) "Yeah, sounds good." | **Decision:** Use Redis |
+| "We still need to decide on the vendor." | **To-do (open item):** Decide on the vendor |
+| "Did we decide on the logo?" / "If we decide to…" | nothing (question / hypothetical) |
+| "Karan, can you update the API docs before the demo?" | **To-do:** Update the API docs before the demo — owner Karan, due *before the demo* |
+| "Can you set it up by Thursday?" / (Karan) "Sure, I'll do it." | **To-do:** Set up … by Thursday — owner Karan |
+| "I'll be honest…", "I'll share my screen", "I already sent it yesterday" | nothing |
+
+Every item stores the verbatim sentence it came from (shown as "Show source" in the UI), a confidence score, owner and deadline. Speaker labels are mapped to names from self-introductions ("Hi, this is Karan").
+
+Set `NLP_ENGINE=llm` to use a language model instead (Claude via the Anthropic SDK, or a local Ollama model); the local engine is the automatic fallback.
 
 ## Notes
 

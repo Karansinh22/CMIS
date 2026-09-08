@@ -260,8 +260,16 @@ class ActionItem(Base):
     )
     description: Mapped[str] = mapped_column(Text)
     owner: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    urgency: Mapped[str] = mapped_column(String(10), default="low")  # low | medium | high
+    urgency: Mapped[str] = mapped_column(String(10), default="low")  # low | medium | high | critical
     resolved: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Deadline phrase as spoken ("by Friday", "before the release"), if any
+    due: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    # Verbatim transcript sentence the item was extracted from
+    evidence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Extraction confidence 0–1 (1.0 for manually added items)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    # Index of the transcript segment the item came from (links UI → transcript)
+    segment_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     context_entry: Mapped["ContextEntry"] = relationship(
         "ContextEntry", back_populates="action_items"
@@ -281,6 +289,11 @@ class Decision(Base):
     )
     description: Mapped[str] = mapped_column(Text)
     decided_on: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Why the decision was taken, when the speaker said so ("because …")
+    rationale: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    evidence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    segment_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     context_entry: Mapped["ContextEntry"] = relationship(
         "ContextEntry", back_populates="decisions"

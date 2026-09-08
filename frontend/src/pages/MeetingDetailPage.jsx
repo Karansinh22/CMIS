@@ -12,7 +12,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader, RefreshCw, MessageSquare, Tag,
   CheckSquare, Gavel, User, Clock, RepeatIcon, AlertCircle, Edit3, Check, X, History, Sparkles,
-  Trash2, Plus, Calendar, FileText
+  Trash2, Plus, Calendar, FileText, Quote, HelpCircle, Radio
 } from 'lucide-react';
 import {
   getMeeting, getTranscript, getContext, patchActionItem, editTranscriptSegment,
@@ -23,6 +23,7 @@ import { useStatusSocket } from '../hooks/useStatusSocket';
 import StatusBadge from '../components/StatusBadge';
 import UrgencyBadge from '../components/UrgencyBadge';
 import ProcessingStatus from '../components/ProcessingStatus';
+import LiveTranscript from '../components/LiveTranscript';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -137,6 +138,44 @@ function TranscriptTab({ meetingId, segments, onSegmentUpdated }) {
   );
 }
 
+/** "Where did this come from?" — the verbatim transcript sentence behind an extracted item. */
+function EvidenceQuote({ evidence, segmentIndex, segmentsByIndex }) {
+  const [open, setOpen] = useState(false);
+  if (!evidence) return null;
+  const seg = segmentIndex != null ? segmentsByIndex?.[segmentIndex] : null;
+  const who = seg?.speaker?.name || seg?.speaker?.label;
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setOpen((p) => !p)}
+        className="text-[10px] uppercase tracking-wider font-semibold text-text-muted hover:text-text-primary flex items-center gap-1"
+      >
+        <Quote size={10} /> {open ? 'Hide source' : 'Show source'}
+        {seg && <span className="font-mono normal-case tracking-normal">· {fmtTime(seg.start_time)}</span>}
+      </button>
+      {open && (
+        <blockquote className="mt-1.5 border-l-2 border-border-strong pl-3 text-[11px] text-text-secondary italic leading-relaxed">
+          {who && <span className="not-italic font-semibold text-text-primary mr-1">{who}:</span>}
+          “{evidence}”
+        </blockquote>
+      )}
+    </div>
+  );
+}
+
+function ConfidenceChip({ confidence }) {
+  if (confidence == null || confidence >= 0.75) return null;
+  return (
+    <span
+      className="text-[10px] text-text-muted flex items-center gap-1 bg-surface-hover px-2 py-0.5 rounded border border-border-default"
+      title={`Extraction confidence ${Math.round(confidence * 100)}% — please verify`}
+    >
+      <HelpCircle size={10} /> {Math.round(confidence * 100)}% sure
+    </span>
+  );
+}
+
 function HistoryTab({ meetingId }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -224,7 +263,7 @@ function TopicsTab({ topics }) {
   );
 }
 
-function ActionItemsTab({ items = [], onToggle, onAdd, onDelete }) {
+function ActionItemsTab({ items = [], onToggle, onAdd, onDelete, segmentsByIndex }) {
   const [showForm, setShowForm] = useState(false);
   const [desc, setDesc]         = useState('');
   const [owner, setOwner]       = useState('');
@@ -352,18 +391,25 @@ function ActionItemsTab({ items = [], onToggle, onAdd, onDelete }) {
                 </p>
                 <div className="flex items-center gap-2.5 mt-2 flex-wrap">
                   <UrgencyBadge urgency={item.urgency} />
-                  {item.owner && (
+                  <span className="text-text-secondary text-xs flex items-center gap-1 bg-surface-hover px-2 py-0.5 rounded border border-border-default">
+                    <User size={10} />
+                    {item.owner
+                      ? <strong className="text-text-primary">{item.owner}</strong>
+                      : <span className="text-text-muted">Unassigned</span>}
+                  </span>
+                  {item.due && (
                     <span className="text-text-secondary text-xs flex items-center gap-1 bg-surface-hover px-2 py-0.5 rounded border border-border-default">
-                      <User size={10} />
-                      <strong className="text-text-primary">{item.owner}</strong>
+                      <Clock size={10} /> {item.due}
                     </span>
                   )}
+                  <ConfidenceChip confidence={item.confidence} />
                   {item.resolved && (
                     <span className="text-semantic-success text-[10px] uppercase font-bold tracking-wider">
                       Resolved
                     </span>
                   )}
                 </div>
+                <EvidenceQuote evidence={item.evidence} segmentIndex={item.segment_index} segmentsByIndex={segmentsByIndex} />
               </div>
 
               {/* Delete button */}
@@ -382,7 +428,7 @@ function ActionItemsTab({ items = [], onToggle, onAdd, onDelete }) {
   );
 }
 
-function DecisionsTab({ decisions = [], onAdd, onDelete }) {
+function DecisionsTab({ decisions = [], onAdd, onDelete, segmentsByIndex }) {
   const [showForm, setShowForm] = useState(false);
   const [desc, setDesc]         = useState('');
 
@@ -444,10 +490,19 @@ function DecisionsTab({ decisions = [], onAdd, onDelete }) {
               </div>
               <div className="flex-1 pr-8">
                 <p className="text-xs sm:text-sm text-text-primary leading-relaxed">{d.description}</p>
-                <p className="text-text-muted text-[11px] mt-1.5 flex items-center gap-1">
-                  <Gavel size={11} />
-                  Recorded • {d.decided_on ? new Date(d.decided_on).toLocaleDateString() : 'Today'}
-                </p>
+                {d.rationale && (
+                  <p className="text-text-secondary text-xs mt-1.5 leading-relaxed">
+                    <span className="font-semibold text-text-primary">Why:</span> {d.rationale}
+                  </p>
+                )}
+                <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                  <p className="text-text-muted text-[11px] flex items-center gap-1">
+                    <Gavel size={11} />
+                    Recorded • {d.decided_on ? new Date(d.decided_on).toLocaleDateString() : 'Today'}
+                  </p>
+                  <ConfidenceChip confidence={d.confidence} />
+                </div>
+                <EvidenceQuote evidence={d.evidence} segmentIndex={d.segment_index} segmentsByIndex={segmentsByIndex} />
               </div>
               <button
                 onClick={() => onDelete(d.id)}
@@ -515,9 +570,16 @@ function MarkdownRenderer({ text }) {
   );
 }
 
-function SummaryTab({ summary, summaryType }) {
+function SummaryTab({ summary, summaryType, processing }) {
   if (!summary) {
-    return <EmptyTab text="Summary will appear here once the intelligence pipeline completes processing." icon={FileText} />;
+    return (
+      <EmptyTab
+        text={processing
+          ? 'The transcript is streaming in on the Transcript tab. The summary, decisions and action items are generated as soon as transcription finishes.'
+          : 'Summary will appear here once the intelligence pipeline completes processing.'}
+        icon={processing ? Radio : FileText}
+      />
+    );
   }
   const typeLabel =
     summaryType === 'brief' ? 'Brief Summary' :
@@ -589,12 +651,43 @@ export default function MeetingDetailPage() {
     }
   };
 
+  const [autoTabbed, setAutoTabbed] = useState(false);
+
+  const refreshTranscript = async () => {
+    try {
+      const tRes = await getTranscript(id);
+      setSegments(tRes.data || []);
+    } catch { /* ignore */ }
+  };
+
   useStatusSocket(
-    meeting && meeting.status !== 'done' ? id : null,
+    meeting && meeting.status !== 'done' && meeting.status !== 'error' ? id : null,
     (event) => {
-      if (event.status === 'ping') return;
-      setWsStatus(event);
-      if (event.status === 'done') loadAll();
+      switch (event.type) {
+        case 'segments':
+          // Lines arrive while Whisper is still running — append them straight away.
+          setSegments((prev) => {
+            const seen = new Set(prev.map((s) => s.id));
+            const fresh = (event.segments || []).filter((s) => !seen.has(s.id));
+            if (!fresh.length) return prev;
+            return [...prev, ...fresh].sort((a, b) => a.segment_index - b.segment_index);
+          });
+          if (event.progress != null) setWsStatus((prev) => ({ ...(prev || {}), progress: event.progress }));
+          break;
+        case 'transcript_ready':
+          // Diarization finished → speaker labels changed on existing lines.
+          refreshTranscript();
+          break;
+        case 'context_ready':
+          loadAll();
+          break;
+        case 'status':
+          setWsStatus(event);
+          if (event.status === 'done' || event.status === 'error') loadAll();
+          break;
+        default:
+          break;
+      }
     }
   );
 
@@ -618,6 +711,15 @@ export default function MeetingDetailPage() {
   };
 
   useEffect(() => { loadAll(); }, [id]);
+
+  // While the recording is still being transcribed, show the transcript tab
+  // so the user sees lines appearing instead of an empty summary.
+  useEffect(() => {
+    if (!autoTabbed && meeting && (meeting.status === 'transcribing' || meeting.status === 'queued')) {
+      setTab('transcript');
+      setAutoTabbed(true);
+    }
+  }, [meeting, autoTabbed]);
 
   const handleSegmentUpdated = (updatedSeg) => {
     setSegments((prev) => prev.map((s) => (s.id === updatedSeg.id ? updatedSeg : s)));
@@ -708,6 +810,9 @@ export default function MeetingDetailPage() {
   }
 
   const currentStatus = wsStatus?.status || meeting.status;
+  const isProcessing = currentStatus !== 'done' && currentStatus !== 'error';
+  const isTranscribing = currentStatus === 'transcribing' || currentStatus === 'queued';
+  const segmentsByIndex = Object.fromEntries(segments.map((s) => [s.segment_index, s]));
 
   return (
     <div className="page-wrapper space-y-6">
@@ -718,7 +823,7 @@ export default function MeetingDetailPage() {
 
       {/* Live Processing Pipeline Card (if in progress) */}
       {currentStatus !== 'done' && (
-        <ProcessingStatus status={currentStatus} message={wsStatus?.message} />
+        <ProcessingStatus status={currentStatus} message={wsStatus?.message} progress={wsStatus?.progress} />
       )}
 
       {/* Meeting Header Card */}
@@ -823,9 +928,11 @@ export default function MeetingDetailPage() {
 
       {/* Tab Content */}
       <div>
-        {tab === 'summary'    && <SummaryTab summary={context?.summary} summaryType={context?.summary_type || meeting?.summary_type} />}
+        {tab === 'summary'    && <SummaryTab summary={context?.summary} summaryType={context?.summary_type || meeting?.summary_type} processing={isProcessing} />}
         {tab === 'transcript' && (
-          <TranscriptTab meetingId={id} segments={segments} onSegmentUpdated={handleSegmentUpdated} />
+          isTranscribing
+            ? <LiveTranscript segments={segments} live progress={wsStatus?.progress} maxHeight="60vh" />
+            : <TranscriptTab meetingId={id} segments={segments} onSegmentUpdated={handleSegmentUpdated} />
         )}
         {tab === 'history'   && <HistoryTab meetingId={id} />}
         {tab === 'topics'    && <TopicsTab topics={context?.topics} />}
@@ -835,6 +942,7 @@ export default function MeetingDetailPage() {
             onToggle={handleToggleAction}
             onAdd={handleAddAction}
             onDelete={handleDeleteAction}
+            segmentsByIndex={segmentsByIndex}
           />
         )}
         {tab === 'decisions' && (
@@ -842,6 +950,7 @@ export default function MeetingDetailPage() {
             decisions={context?.decisions}
             onAdd={handleAddDecision}
             onDelete={handleDeleteDecision}
+            segmentsByIndex={segmentsByIndex}
           />
         )}
       </div>

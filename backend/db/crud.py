@@ -177,6 +177,10 @@ def create_action_item(db: Session, data: ActionItemCreate) -> ActionItem:
         owner=data.owner,
         urgency=data.urgency,
         resolved=data.resolved,
+        due=data.due,
+        evidence=data.evidence,
+        confidence=data.confidence,
+        segment_index=data.segment_index,
     )
     db.add(item)
     db.commit()
@@ -218,6 +222,10 @@ def create_decision(db: Session, data: DecisionCreate) -> Decision:
     decision = Decision(
         context_id=data.context_id,
         description=data.description,
+        rationale=data.rationale,
+        evidence=data.evidence,
+        confidence=data.confidence,
+        segment_index=data.segment_index,
     )
     db.add(decision)
     db.commit()

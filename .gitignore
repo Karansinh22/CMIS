@@ -40,3 +40,6 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# ── Test artefacts ───────────────────────────────────────────────────────────
+backend/tests/tmp_uploads/

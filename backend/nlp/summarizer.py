@@ -132,6 +132,8 @@ def _tfidf_rank(sentences: List[str], top_n: int = 5) -> List[str]:
 
 def _detect_meeting_theme(keywords: List[str], topic_titles: List[str]) -> str:
     """Infer a high-level meeting theme from keywords and topic titles."""
+    if topic_titles:
+        return ", ".join(t.strip() for t in topic_titles[:3] if t.strip())
     all_words = keywords + [w for t in topic_titles for w in _tokenize(t)]
     if not all_words:
         return "organizational discussion"
@@ -147,7 +149,7 @@ def _count_speakers(segment_texts: List[str], speaker_labels: Optional[List[str]
 
 
 def _urgency_label(urgency: str) -> str:
-    mapping = {"high": "🔴 High Priority", "medium": "🟡 Medium Priority", "low": "🟢 Low Priority"}
+    mapping = {"critical": "🚨 Critical", "high": "🔴 High Priority", "medium": "🟡 Medium Priority", "low": "🟢 Low Priority"}
     return mapping.get((urgency or "low").lower(), "🟢 Low Priority")
 
 
@@ -186,7 +188,8 @@ def generate_meeting_summary(
         summary_type = "balanced"
 
     # ── Corpus-level analysis ────────────────────────────────────────────────
-    full_transcript = " ".join(segment_texts)
+    from nlp.intent import clean_text
+    full_transcript = " ".join(clean_text(t) for t in segment_texts if t and t.strip())
     all_sentences = _sentence_split(full_transcript)
 
     all_tokens = _tokenize(full_transcript)
@@ -194,9 +197,12 @@ def generate_meeting_summary(
     keywords = _extract_keywords(freq_table, top_n=10)
 
     topic_titles = [t.get("title", "") for t in (topics or []) if t.get("title")]
-    action_descs = [(a.get("description", ""), a.get("owner"), a.get("urgency", "low"))
+    action_descs = [(a.get("description", ""), a.get("owner"), a.get("urgency", "low"), a.get("due"))
                     for a in (action_items or []) if a.get("description")]
-    decision_descs = [d.get("description", "") for d in (decisions or []) if d.get("description")]
+    decision_descs = [
+        (d["description"] + (f" — *{d['rationale']}*" if d.get("rationale") else ""))
+        for d in (decisions or []) if d.get("description")
+    ]
 
     meeting_theme = _detect_meeting_theme(keywords[:6], topic_titles)
     num_speakers = _count_speakers(segment_texts, speaker_labels)
@@ -256,9 +262,10 @@ def _generate_brief(
 
     # Top action item
     if action_descs:
-        desc, owner, urgency = action_descs[0]
+        desc, owner, urgency, due = action_descs[0]
         owner_str = f" — *Owner: {owner}*" if owner else ""
-        lines.append(f"• 🎯 **Immediate Action:** {desc}{owner_str} [{_urgency_label(urgency)}]")
+        due_str = f" *({due})*" if due else ""
+        lines.append(f"• 🎯 **Immediate Action:** {desc}{due_str}{owner_str} [{_urgency_label(urgency)}]")
 
     # Additional key sentences
     if len(top_sents) > 1:
@@ -312,9 +319,10 @@ def _generate_balanced(
     # ── Section 3: Next Steps ────────────────────────────────────────────────
     if action_descs:
         sections.append("### Next Steps & Commitments\n")
-        for desc, owner, urgency in action_descs[:5]:
-            owner_str = f"**{owner}**" if owner else "Team"
-            sections.append(f"- {owner_str} to: {desc} *(Priority: {urgency.title()})*")
+        for desc, owner, urgency, due in action_descs[:6]:
+            owner_str = f"**{owner}**" if owner else "Unassigned"
+            due_str = f" — {due}" if due else ""
+            sections.append(f"- {owner_str}: {desc}{due_str} *(Priority: {urgency.title()})*")
         sections.append("")
 
     # Closing insight
@@ -382,14 +390,14 @@ def _generate_comprehensive(
     # ── Action Items ─────────────────────────────────────────────────────────
     if action_descs:
         sections.append("### 🎯 Action Items & Assignments\n")
-        sections.append("| # | Task | Owner | Priority |")
-        sections.append("|---|------|-------|----------|")
-        for idx, (desc, owner, urgency) in enumerate(action_descs, start=1):
-            owner_col = owner if owner else "TBD"
+        sections.append("| # | Task | Owner | Due | Priority |")
+        sections.append("|---|------|-------|-----|----------|")
+        for idx, (desc, owner, urgency, due) in enumerate(action_descs, start=1):
+            owner_col = owner if owner else "Unassigned"
             urgency_col = _urgency_label(urgency)
             # Truncate long descriptions
             desc_col = desc if len(desc) <= 100 else desc[:97] + "..."
-            sections.append(f"| {idx} | {desc_col} | {owner_col} | {urgency_col} |")
+            sections.append(f"| {idx} | {desc_col} | {owner_col} | {due or '—'} | {urgency_col} |")
         sections.append("")
 
     # ── Closing Statement ────────────────────────────────────────────────────

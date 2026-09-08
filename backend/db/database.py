@@ -55,3 +55,36 @@ def init_db() -> None:
     # Import all models so SQLAlchemy can see them before calling create_all
     import db.models  # noqa: F401
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
+
+
+# Columns added after the first release.  ``create_all`` never alters existing
+# tables, so add them here for databases created by older versions.
+_NEW_COLUMNS = {
+    "action_items": [
+        ("due", "VARCHAR(100)"),
+        ("evidence", "TEXT"),
+        ("confidence", "FLOAT DEFAULT 1.0"),
+        ("segment_index", "INTEGER"),
+    ],
+    "decisions": [
+        ("rationale", "TEXT"),
+        ("evidence", "TEXT"),
+        ("confidence", "FLOAT DEFAULT 1.0"),
+        ("segment_index", "INTEGER"),
+    ],
+}
+
+
+def _ensure_columns() -> None:
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table, columns in _NEW_COLUMNS.items():
+            if table not in inspector.get_table_names():
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in columns:
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))

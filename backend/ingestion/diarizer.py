@@ -66,6 +66,12 @@ def _get_pipeline(hf_token: str):
     return _pipeline_cache[hf_token]
 
 
+def preload() -> None:
+    """Warm up the pyannote pipeline at startup (no-op when disabled)."""
+    if settings.diarization_enabled and settings.hf_token:
+        _get_pipeline(settings.hf_token)
+
+
 def diarize(audio_path: Path) -> List[SpeakerTurn]:
     """
     Run pyannote speaker diarization on an audio file.
