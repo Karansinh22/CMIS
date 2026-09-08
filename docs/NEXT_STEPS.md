@@ -98,6 +98,28 @@ Tests: `tests/test_intent.py` (31 behavioural cases) and
 * Tests — `tests/test_live.py` covers pause-based chunking and the whole
   WebSocket protocol through to `status = done` with Whisper mocked.
 
+### 2.5 Phase 6 — report generation (complete)
+
+* `reports/generator.py` renders Minutes of Meeting (`.docx`), a slide deck
+  (`.pptx`) and Markdown from the context store; `render_project_docx` builds a
+  project-wide report (summary, open items, decisions by meeting).
+* `routers/reports.py` — generate / list / download / delete per meeting,
+  `POST /projects/{id}/reports` for the project document.
+* UI — **Reports** tab on the meeting page (generate + download, transcript
+  appendix toggle, history of generated files) and a *Download Project Report*
+  button on the project page.
+* `tests/test_reports.py` checks the generated files contain the decisions,
+  action items, rationale and transcript.
+
+### 2.6 Optimisation and repo hygiene
+
+* Backend: lifespan startup (no deprecated `on_event`), `PRAGMA synchronous=NORMAL`
+  for the many small commits during streaming, eager-loaded speakers on the
+  transcript endpoint (no N+1), configurable `CORS_ORIGINS`, version 0.2.0.
+* Repo: MIT `LICENSE`, `CONTRIBUTING.md`, `CHANGELOG.md`, `.editorconfig`,
+  GitHub Actions CI (pytest + frontend lint/build), `requirements-ci.txt`,
+  generated test WAVs and SQLite journals no longer tracked.
+
 ## 3. Verify on the demo laptop (do this first)
 
 ```bash
@@ -118,9 +140,7 @@ cd ../frontend && npm install && npm run dev
 4. Open **Record Live**, allow the microphone, talk for a minute with a pause or
    two, press Stop. Lines should appear within ~3–5 s of being spoken; after
    Stop the Actions/Decisions tabs fill in.
-5. `pytest tests/ -v` — `test_projects::test_create_and_list_projects` fails on
-   `main` as well (the list endpoint requires a logged-in user); everything
-   else passes.
+5. `pytest tests/ -v` — the whole suite should pass.
 
 Demo-day settings to consider in `.env`:
 
@@ -143,9 +163,11 @@ Demo-day settings to consider in `.env`:
       meeting page and re-run extraction so owners use real names
       (`Speaker.name` is already stored and already used by the engine).
 
-### P1 — product completeness (Phase 6 in the build spec)
-- [ ] Minutes-of-Meeting `.docx` and one-paragraph summary generated from the
-      context store (python-docx is already in requirements).
+### P1 — product completeness
+- [x] Minutes-of-Meeting `.docx`, slide deck and Markdown generated from the
+      context store (Phase 6).
+- [ ] PDF export (convert the .docx with LibreOffice headless, or render the
+      Markdown with a small HTML→PDF step).
 - [ ] Editable action items (description, due date) and "open questions"
       section in the UI; mark decisions as superseded.
 - [ ] Run diarization concurrently with transcription in a second thread when a
@@ -162,14 +184,14 @@ Demo-day settings to consider in `.env`:
       has a GPU; compare against the local engine on the evaluation set.
 - [ ] Abstractive summary from the extracted structure instead of the
       TF-IDF extractive template.
-- [ ] Fix `GET /projects` for unauthenticated dev sessions (or make the test log
-      in), migrate `@app.on_event` to a lifespan handler, add an auth check on
-      the WebSocket endpoint.
+- [x] `GET /projects` works for unauthenticated dev sessions; startup uses a
+      lifespan handler.
+- [ ] Add an auth check on the WebSocket endpoints (token as query parameter).
 - [ ] Drop unused heavy dependencies from `requirements.txt` (or split them into
       `requirements-ml.txt`) so a fresh install is faster on a laptop.
 
 ### P3 — engineering hygiene
-- [ ] GitHub Actions running `pytest` (models are mocked, so it is fast).
+- [x] GitHub Actions running `pytest` and the frontend build.
 - [ ] Docker image with CUDA variant for GPU laptops.
 - [ ] Persist job status in SQLite so a server restart doesn't lose the
       "transcribing" state shown to clients.

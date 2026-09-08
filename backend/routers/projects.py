@@ -117,11 +117,10 @@ def list_projects(
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ):
-    """List all projects for the authenticated user."""
-    if not current_user:
-        return []
-
-    query = db.query(Project).filter(Project.user_id == current_user.id)
+    """List the authenticated user's projects (anonymous sessions see unowned projects)."""
+    query = db.query(Project).filter(
+        Project.user_id == (current_user.id if current_user else None)
+    )
     projects = query.order_by(Project.updated_at.desc()).all()
 
     result = []

@@ -107,8 +107,11 @@ def bulk_create_segments(db: Session, segments: List[SegmentCreate]) -> int:
 
 
 def get_segments_for_meeting(db: Session, meeting_id: str) -> List[TranscriptSegment]:
+    from sqlalchemy.orm import selectinload
+
     return (
         db.query(TranscriptSegment)
+        .options(selectinload(TranscriptSegment.speaker))
         .filter(TranscriptSegment.meeting_id == meeting_id)
         .order_by(TranscriptSegment.segment_index)
         .all()

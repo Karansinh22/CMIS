@@ -263,6 +263,11 @@ export default function MeetingsPage() {
               {/* Right Controls: Status badge, Delete button, Arrow */}
               <div className="flex items-center gap-3 shrink-0">
                 <StatusBadge status={m.status} />
+                {m.source === 'live' && (
+                  <span className="badge badge-gray text-[10px] flex items-center gap-1" title="Recorded live from the microphone">
+                    <Mic size={10} /> Live
+                  </span>
+                )}
 
                 {/* Delete Button */}
                 <button

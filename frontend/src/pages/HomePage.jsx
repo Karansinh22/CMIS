@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Upload, FolderKanban, CheckSquare,
+  Upload, FolderKanban, CheckSquare, Mic,
   ArrowRight, Cpu, Layers, Mic, Calendar, ChevronRight,
   Zap, ListOrdered
 } from 'lucide-react';
@@ -61,6 +61,13 @@ export default function HomePage() {
             >
               <Upload size={14} />
               <span>Upload Recording</span>
+            </button>
+            <button
+              onClick={() => navigate('/live')}
+              className="btn-secondary text-xs py-2.5 px-4"
+            >
+              <Mic size={14} />
+              <span>Record Live</span>
             </button>
             <button
               onClick={() => navigate('/meetings')}

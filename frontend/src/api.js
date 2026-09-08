@@ -86,6 +86,32 @@ export const editTranscriptSegment = (meetingId, segmentId, newText) =>
 export const getTranscriptHistory = (meetingId) =>
   api.get(`/meetings/${meetingId}/transcript/history`);
 
+// ── Reports (Phase 6) ─────────────────────────────────────────────────────────
+
+export const generateReport = (meetingId, format = 'docx', includeTranscript = true) =>
+  api.post(`/meetings/${meetingId}/reports`, null, { params: { format, include_transcript: includeTranscript } });
+export const listReports   = (meetingId) => api.get(`/meetings/${meetingId}/reports`);
+export const deleteReport  = (reportId)  => api.delete(`/reports/${reportId}`);
+export const generateProjectReport = (projectId) =>
+  api.post(`/projects/${projectId}/reports`, null, { responseType: 'blob' });
+
+/** Download a report through the API (keeps the auth header) and save it in the browser. */
+export const downloadReport = async (reportId, filename) => {
+  const res = await api.get(`/reports/${reportId}/download`, { responseType: 'blob' });
+  saveBlob(res.data, filename || res.headers['content-disposition']?.match(/filename="?([^"]+)"?/)?.[1] || 'report');
+};
+
+export const saveBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 // ── Context ───────────────────────────────────────────────────────────────────
 
 export const getContext        = (meetingId)  => api.get(`/context/${meetingId}`);

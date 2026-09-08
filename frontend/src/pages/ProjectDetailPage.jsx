@@ -9,7 +9,7 @@ import {
   CheckCircle2, AlertCircle, ArrowLeft, Play, FileText, CheckSquare, MessageSquare, ChevronRight,
   Check
 } from 'lucide-react';
-import { getProject, uploadProjectMeeting, synthesizeProject } from '../api';
+import { getProject, uploadProjectMeeting, synthesizeProject, generateProjectReport, saveBlob } from '../api';
 import StatusBadge from '../components/StatusBadge';
 
 function round(val, decimals = 1) {
@@ -33,6 +33,7 @@ export default function ProjectDetailPage() {
 
   // Resynthesize loading
   const [resynthesizing, setResynthesizing] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
 
   const fetchProjectData = async () => {
     try {
@@ -154,14 +155,32 @@ export default function ProjectDetailPage() {
             )}
           </div>
 
-          <button
-            onClick={handleResynthesize}
-            disabled={resynthesizing}
-            className="btn-secondary text-xs py-2 px-3.5 shrink-0 self-start md:self-auto"
-          >
-            <RefreshCw size={13} className={resynthesizing ? 'animate-spin' : ''} />
-            <span>{resynthesizing ? 'Synthesizing...' : 'Re-synthesize Context'}</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+            <button
+              onClick={async () => {
+                setReportBusy(true);
+                try {
+                  const res = await generateProjectReport(projectId);
+                  const name = res.headers['content-disposition']?.match(/filename="?([^"]+)"?/)?.[1] || `${project.name}_report.docx`;
+                  saveBlob(res.data, name);
+                } catch { /* ignore */ } finally { setReportBusy(false); }
+              }}
+              disabled={reportBusy}
+              className="btn-primary text-xs py-2 px-3.5"
+              title="Word report: overall summary, open action items and decisions across all meetings"
+            >
+              <RefreshCw size={13} className={reportBusy ? 'animate-spin' : 'hidden'} />
+              <span>{reportBusy ? 'Generating…' : 'Download Project Report (.docx)'}</span>
+            </button>
+            <button
+              onClick={handleResynthesize}
+              disabled={resynthesizing}
+              className="btn-secondary text-xs py-2 px-3.5"
+            >
+              <RefreshCw size={13} className={resynthesizing ? 'animate-spin' : ''} />
+              <span>{resynthesizing ? 'Synthesizing...' : 'Re-synthesize Context'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Stats Strip */}

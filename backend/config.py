@@ -73,6 +73,7 @@ class Settings(BaseSettings):
 
     # ── Paths ────────────────────────────────────────────────────────────────
     upload_dir: Path = Path("./uploads")
+    reports_dir: Path = Path("./reports_out")
     lsh_index_path: Path = Path("./lsh_index.pkl")
 
     # ── Auth / JWT ────────────────────────────────────────────────────────────
@@ -94,11 +95,14 @@ class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
     debug: bool = False
     app_title: str = "CMIS — Contextual Meeting Intelligence System"
-    app_version: str = "0.1.0"
+    app_version: str = "0.2.0"
+    # Comma-separated list of allowed browser origins; "*" allows all (dev default)
+    cors_origins: str = "*"
 
     def ensure_dirs(self) -> None:
         """Create required directories if they don't exist."""
         self.upload_dir.mkdir(parents=True, exist_ok=True)
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
 
 
 # Module-level singleton — import this everywhere

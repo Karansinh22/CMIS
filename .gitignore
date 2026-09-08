@@ -46,3 +46,7 @@ backend/tests/tmp_uploads/
 *.db-shm
 *.db-wal
 *.db-journal
+
+# ── Generated reports ─────────────────────────────────────────────────────────
+backend/reports_out/
+reports_out/

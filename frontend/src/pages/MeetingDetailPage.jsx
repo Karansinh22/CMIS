@@ -12,12 +12,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader, RefreshCw, MessageSquare, Tag,
   CheckSquare, Gavel, User, Clock, RepeatIcon, AlertCircle, Edit3, Check, X, History, Sparkles,
-  Trash2, Plus, Calendar, FileText, Quote, HelpCircle, Radio
+  Trash2, Plus, Calendar, FileText, Quote, HelpCircle, Radio, Download, Presentation, FileDown, Mic
 } from 'lucide-react';
 import {
   getMeeting, getTranscript, getContext, patchActionItem, editTranscriptSegment,
   getTranscriptHistory, createActionItem, deleteActionItem, createDecision, deleteDecision,
-  deleteMeeting
+  deleteMeeting, generateReport, listReports, deleteReport, downloadReport
 } from '../api';
 import { useStatusSocket } from '../hooks/useStatusSocket';
 import StatusBadge from '../components/StatusBadge';
@@ -603,6 +603,108 @@ function SummaryTab({ summary, summaryType, processing }) {
   );
 }
 
+/** Phase 6 — documents generated from the context store (no re-processing). */
+const REPORT_KINDS = [
+  { format: 'docx', label: 'Minutes of Meeting', sub: 'Word document (.docx)', icon: FileText },
+  { format: 'pptx', label: 'Slide deck',         sub: 'PowerPoint (.pptx)',    icon: Presentation },
+  { format: 'md',   label: 'Markdown minutes',   sub: 'Plain text (.md)',      icon: FileDown },
+];
+
+function ReportsTab({ meetingId, ready }) {
+  const [reports, setReports] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(null);           // format being generated
+  const [withTranscript, setWithTranscript] = useState(true);
+  const [error, setError] = useState(null);
+
+  const load = () => {
+    listReports(meetingId)
+      .then(({ data }) => setReports(data || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  };
+  useEffect(load, [meetingId]);
+
+  const handleGenerate = async (format) => {
+    setBusy(format); setError(null);
+    try {
+      const { data } = await generateReport(meetingId, format, withTranscript);
+      setReports((prev) => [data, ...prev]);
+      await downloadReport(data.id, data.file_path?.split(/[\\/]/).pop());
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Could not generate the report.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await deleteReport(id);
+      setReports((prev) => prev.filter((r) => r.id !== id));
+    } catch { /* ignore */ }
+  };
+
+  const fileName = (r) => (r.file_path || '').split(/[\\/]/).pop() || `${r.format} report`;
+
+  return (
+    <div className="space-y-4">
+      {!ready && (
+        <div className="card p-3 text-xs text-text-secondary flex items-center gap-2">
+          <Clock size={13} /> Reports become available once processing has finished.
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {REPORT_KINDS.map(({ format, label, sub, icon: Icon }) => (
+          <button
+            key={format}
+            disabled={!ready || !!busy}
+            onClick={() => handleGenerate(format)}
+            className="card p-4 text-left hover:border-border-strong transition-colors disabled:opacity-50"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              {busy === format ? <Loader size={15} className="animate-spin" /> : <Icon size={15} className="text-text-primary" />}
+              <span className="text-sm font-semibold text-text-primary">{label}</span>
+            </div>
+            <p className="text-[11px] text-text-muted">{sub}</p>
+            <p className="text-[11px] text-text-secondary mt-2 flex items-center gap-1"><Download size={11} /> Generate &amp; download</p>
+          </button>
+        ))}
+      </div>
+      <label className="flex items-center gap-2 text-xs text-text-secondary">
+        <input type="checkbox" checked={withTranscript} onChange={(e) => setWithTranscript(e.target.checked)} />
+        Append the full transcript (Word / Markdown)
+      </label>
+      {error && <p className="text-xs text-semantic-error">{error}</p>}
+
+      <div className="card divide-y divide-border-subtle">
+        <div className="px-4 py-2.5 text-[10px] uppercase tracking-wider font-semibold text-text-muted">
+          Generated reports {loading ? '' : `(${reports.length})`}
+        </div>
+        {loading ? (
+          <div className="p-6 text-center text-xs text-text-muted">Loading…</div>
+        ) : reports.length === 0 ? (
+          <div className="p-6 text-center text-xs text-text-muted">No reports generated yet.</div>
+        ) : (
+          reports.map((r) => (
+            <div key={r.id} className="px-4 py-3 flex items-center gap-3 text-xs">
+              <span className="badge badge-gray uppercase text-[10px] w-12 justify-center">{r.format}</span>
+              <span className="flex-1 min-w-0 truncate text-text-primary">{fileName(r)}</span>
+              <span className="text-text-muted font-mono hidden sm:inline">{new Date(r.generated_on).toLocaleString()}</span>
+              <button onClick={() => downloadReport(r.id, fileName(r))} className="btn-icon p-1.5" title="Download">
+                <Download size={13} />
+              </button>
+              <button onClick={() => handleDelete(r.id)} className="btn-icon p-1.5 text-text-muted hover:text-semantic-error" title="Delete">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EmptyTab({ text, icon: Icon }) {
   return (
     <div className="empty-state py-12">
@@ -618,6 +720,7 @@ const TABS = [
   { key: 'topics',     label: 'Topics',            icon: Tag,           countKey: 'topics' },
   { key: 'actions',    label: 'Actions',           icon: CheckSquare,   countKey: 'action_items' },
   { key: 'decisions',  label: 'Decisions',         icon: Gavel,         countKey: 'decisions' },
+  { key: 'reports',    label: 'Reports',           icon: FileDown,      count: null },
   { key: 'history',    label: 'History',           icon: History,       count: null },
 ];
 
@@ -833,6 +936,11 @@ export default function MeetingDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-lg sm:text-xl font-bold text-text-primary tracking-tight">{meeting.title}</h1>
               <StatusBadge status={currentStatus} />
+              {meeting.source === 'live' && (
+                <span className="badge badge-gray text-[10px] flex items-center gap-1" title="Recorded live from the microphone">
+                  <Mic size={10} /> Live
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-3 text-xs text-text-muted flex-wrap">
@@ -935,6 +1043,7 @@ export default function MeetingDetailPage() {
             : <TranscriptTab meetingId={id} segments={segments} onSegmentUpdated={handleSegmentUpdated} />
         )}
         {tab === 'history'   && <HistoryTab meetingId={id} />}
+        {tab === 'reports'   && <ReportsTab meetingId={id} ready={currentStatus === 'done'} />}
         {tab === 'topics'    && <TopicsTab topics={context?.topics} />}
         {tab === 'actions'   && (
           <ActionItemsTab
