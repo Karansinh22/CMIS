@@ -1,6 +1,6 @@
 # CMIS — Next Steps Plan
 
-_Last updated: 8 September 2026 (branch `feat/streaming-transcript-and-intent-nlp`)_
+_Last updated: 9 September 2026 (on `main`)_
 
 This document records what was wrong at the panel demo, what has been changed
 to fix it, how to verify the fix on the demo laptop, and the prioritised
@@ -84,6 +84,20 @@ Existing SQLite files are migrated automatically at startup.
 Tests: `tests/test_intent.py` (31 behavioural cases) and
 `tests/test_streaming.py` (incremental persistence, progress, re-labelling).
 
+### 2.4 Live microphone recording (Phase 5.5 complete)
+
+* `POST /meetings/live` creates a meeting with `source = "live"`;
+  `WS /ws/live/{id}` accepts 16 kHz mono int16 PCM frames.
+* `ingestion/live.py` — `LiveSession` buffers audio, cuts chunks at pauses
+  (RMS silence detection, 3–10 s), transcribes each chunk in a worker thread
+  with `transcribe_stream(np.ndarray, time_offset=…)` and reuses
+  `persist_segments` / `relabel_with_diarization` from the upload pipeline.
+  On stop it writes the WAV, diarizes, re-labels and runs `run_nlp`.
+* Front end — `LivePage.jsx` (`/live`, "Record Live" in the sidebar): AudioWorklet
+  downsampler, level meter, live transcript, stop → processing → report.
+* Tests — `tests/test_live.py` covers pause-based chunking and the whole
+  WebSocket protocol through to `status = done` with Whisper mocked.
+
 ## 3. Verify on the demo laptop (do this first)
 
 ```bash
@@ -101,7 +115,10 @@ cd ../frontend && npm install && npm run dev
    real labels without a reload.
 3. The Actions tab shows owner, deadline, and "Show source" quotes. The
    Decisions tab shows "Why:" where a reason was spoken.
-4. `pytest tests/ -v` — `test_projects::test_create_and_list_projects` fails on
+4. Open **Record Live**, allow the microphone, talk for a minute with a pause or
+   two, press Stop. Lines should appear within ~3–5 s of being spoken; after
+   Stop the Actions/Decisions tabs fill in.
+5. `pytest tests/ -v` — `test_projects::test_create_and_list_projects` fails on
    `main` as well (the list endpoint requires a logged-in user); everything
    else passes.
 
@@ -133,6 +150,9 @@ Demo-day settings to consider in `.env`:
       section in the UI; mark decisions as superseded.
 - [ ] Run diarization concurrently with transcription in a second thread when a
       GPU is present (CPU-only machines should keep the sequential order).
+- [ ] Live recording: pause/resume, reconnect after a dropped WebSocket (the
+      server already keeps the session alive and finalises on disconnect), and
+      a system-audio option for online calls (browser tab capture).
 - [ ] Use sentence-transformers embeddings (already a dependency, currently
       unused) for topic segmentation and recurring-topic matching instead of
       TF-IDF; makes recurring detection tolerant to paraphrase.

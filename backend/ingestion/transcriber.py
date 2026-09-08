@@ -23,8 +23,13 @@ from __future__ import annotations
 import logging
 import os
 import threading
+
+try:
+    import numpy as np
+except ImportError:  # pragma: no cover
+    np = None  # type: ignore
 from pathlib import Path
-from typing import Callable, Iterator, List, Optional
+from typing import Callable, Iterator, List, Optional, Union
 
 from config import settings
 
@@ -134,33 +139,52 @@ def _get_audio_duration(audio_path: Path) -> float:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+_transcribe_lock = threading.Lock()   # one decode at a time keeps CPU usage sane
+
+
 def transcribe_stream(
-    audio_path: Path,
+    audio: Union[Path, "np.ndarray"],
     model_name: Optional[str] = None,
     on_progress: Optional[Callable[[float], None]] = None,
+    time_offset: float = 0.0,
+    initial_prompt: Optional[str] = None,
 ) -> Iterator[RawSegment]:
     """
-    Transcribe an audio file, yielding segments as Whisper produces them.
+    Transcribe audio, yielding segments as Whisper produces them.
 
     Args:
-        audio_path:  Path to a 16 kHz mono WAV.
-        model_name:  Override the model from settings.
-        on_progress: Optional callback receiving a 0–1 fraction of audio decoded.
+        audio:          Path to a 16 kHz mono WAV, **or** a float32 NumPy array of
+                        16 kHz mono samples (used by live microphone streaming).
+        model_name:     Override the model from settings.
+        on_progress:    Optional callback receiving a 0–1 fraction of audio decoded.
+        time_offset:    Added to every timestamp (for chunked live audio).
+        initial_prompt: Text of the previous chunk, helps continuity across chunks.
 
     Yields:
         RawSegment objects in chronological order.
     """
-    from utils.audio import ensure_ffmpeg
-    ensure_ffmpeg()
-
     model_name = model_name or settings.whisper_model
     model = _get_model(model_name)
-    duration = _get_audio_duration(audio_path)
 
-    logger.info("Transcribing %s with model '%s' (%.0fs of audio)…", audio_path.name, model_name, duration)
+    if isinstance(audio, Path):
+        from utils.audio import ensure_ffmpeg
+        ensure_ffmpeg()
+        duration = _get_audio_duration(audio)
+        source = str(audio)
+        logger.info("Transcribing %s with model '%s' (%.0fs of audio)…", audio.name, model_name, duration)
+    else:
+        duration = float(len(audio)) / 16000.0
+        source = audio
+        logger.debug("Transcribing %.1fs in-memory chunk at offset %.1fs…", duration, time_offset)
 
+    with _transcribe_lock:
+        yield from _decode(model, source, duration, on_progress, time_offset, initial_prompt)
+
+
+def _decode(model, source, duration, on_progress, time_offset, initial_prompt) -> Iterator[RawSegment]:
     segments_iter, info = model.transcribe(
-        str(audio_path),
+        source,
+        initial_prompt=initial_prompt,
         beam_size=max(1, int(settings.whisper_beam_size)),
         language="en",   # set None to enable (slower) auto-detection
         vad_filter=bool(settings.whisper_vad_filter),
@@ -178,11 +202,12 @@ def transcribe_stream(
                 on_progress(min(1.0, float(seg.end) / duration))
             except Exception:  # noqa: BLE001
                 pass
-        yield RawSegment(text, float(seg.start), float(seg.end))
+        yield RawSegment(text, float(seg.start) + time_offset, float(seg.end) + time_offset)
 
     lang = getattr(info, "language", "?")
     prob = getattr(info, "language_probability", 0.0) or 0.0
-    logger.info(
+    logger.log(
+        logging.INFO if isinstance(source, str) else logging.DEBUG,
         "Transcription complete: %d segments, detected language '%s' (prob=%.2f)",
         count, lang, float(prob),
     )

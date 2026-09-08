@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  Brain, LayoutDashboard, Upload, FolderKanban, ListOrdered, CheckSquare,
+  Brain, LayoutDashboard, Upload, FolderKanban, ListOrdered, CheckSquare, Mic,
   TrendingUp, Settings, LogOut, X, Menu, ShieldCheck, ChevronRight
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -18,6 +18,7 @@ const NAV_ITEMS = [
       { to: '/meetings', label: 'Meetings',     icon: ListOrdered },
       { to: '/projects', label: 'Projects',     icon: FolderKanban },
       { to: '/upload',   label: 'Upload Audio', icon: Upload },
+      { to: '/live',     label: 'Record Live',  icon: Mic },
     ],
   },
   {

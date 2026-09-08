@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     transcript_flush_segments: int = 3
     transcript_flush_seconds: float = 1.5
 
+    # ── Live microphone streaming ────────────────────────────────────────────
+    # Audio is transcribed in chunks: a chunk is cut at a pause once it holds at
+    # least `live_min_chunk_seconds`, or forcibly at `live_max_chunk_seconds`.
+    live_min_chunk_seconds: float = 3.0
+    live_max_chunk_seconds: float = 10.0
+    live_silence_rms: float = 0.010          # RMS below this (float32 scale) counts as silence
+    live_silence_seconds: float = 0.6        # pause length that ends a chunk
+
     # ── NLP extraction engine ────────────────────────────────────────────────
     # "local" → intent/context-aware rule engine (offline, default)
     # "llm"   → LLM extraction (Anthropic or Ollama) with local fallback

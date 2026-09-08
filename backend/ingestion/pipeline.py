@@ -54,6 +54,78 @@ def _segment_to_dict(seg: TranscriptSegment, speaker: Speaker | None) -> Dict:
     }
 
 
+def persist_segments(
+    db: Session,
+    meeting_id: str,
+    speaker: Speaker,
+    raw_segments: List[RawSegment],
+    start_index: int,
+    progress: float | None = None,
+) -> List[TranscriptSegment]:
+    """Insert a batch of segments and push them to live viewers. Returns the rows."""
+    from jobs.worker import publish_segments
+
+    if not raw_segments:
+        return []
+    objs = [
+        TranscriptSegment(
+            meeting_id=meeting_id,
+            speaker_id=speaker.id,
+            text=seg.text,
+            start_time=seg.start,
+            end_time=seg.end,
+            segment_index=start_index + i,
+        )
+        for i, seg in enumerate(raw_segments)
+    ]
+    db.add_all(objs)
+    db.commit()
+    publish_segments(meeting_id, [_segment_to_dict(o, speaker) for o in objs], progress=progress)
+    return objs
+
+
+def relabel_with_diarization(
+    db: Session,
+    meeting_id: str,
+    wav_path: Path,
+    raw_segments: List[RawSegment],
+    persisted: List[TranscriptSegment],
+    provisional: Speaker,
+) -> bool:
+    """Run diarization on the full audio and re-label already persisted rows.
+
+    Returns True when labels changed (clients should re-fetch the transcript)."""
+    from jobs.worker import publish
+
+    diar_turns = diarize(wav_path)
+    if not diar_turns:
+        return False
+
+    labelled = merge_transcript_with_diarization(raw_segments, diar_turns)
+    speaker_map: Dict[str, str] = {}
+    for label in {seg.speaker for seg in labelled}:
+        spk = crud.get_or_create_speaker(db, meeting_id, label)
+        speaker_map[label] = spk.id
+
+    for persisted_seg, lab in zip(persisted, labelled):
+        persisted_seg.speaker_id = speaker_map.get(lab.speaker, provisional.id)
+    db.commit()
+
+    # Drop the provisional speaker if diarization never used it.
+    if PROVISIONAL_SPEAKER not in speaker_map:
+        still_used = (
+            db.query(TranscriptSegment)
+            .filter(TranscriptSegment.speaker_id == provisional.id)
+            .count()
+        )
+        if not still_used:
+            db.delete(provisional)
+            db.commit()
+
+    publish(meeting_id, {"type": "transcript_ready", "status": "transcribing"})
+    return True
+
+
 def run_ingestion(audio_path: Path, meeting_id: str, db: Session) -> None:
     """
     Full ingestion pipeline for one meeting.
@@ -62,7 +134,7 @@ def run_ingestion(audio_path: Path, meeting_id: str, db: Session) -> None:
     real-time progress to connected clients.  Leaves the meeting in the
     ``structuring`` state so the NLP stage can pick it up.
     """
-    from jobs.worker import publish, publish_segments, update_status  # avoid circular import
+    from jobs.worker import update_status  # avoid circular import
 
     try:
         # ── 1. Validate & extract audio ──────────────────────────────────────
@@ -92,28 +164,11 @@ def run_ingestion(audio_path: Path, meeting_id: str, db: Session) -> None:
             nonlocal last_flush
             if not buffer:
                 return
-            start_index = len(persisted)
-            objs = [
-                TranscriptSegment(
-                    meeting_id=meeting_id,
-                    speaker_id=provisional.id,
-                    text=seg.text,
-                    start_time=seg.start,
-                    end_time=seg.end,
-                    segment_index=start_index + i,
-                )
-                for i, seg in enumerate(buffer)
-            ]
-            db.add_all(objs)
-            db.commit()
-            persisted.extend(objs)
+            persisted.extend(
+                persist_segments(db, meeting_id, provisional, list(buffer), len(persisted), progress_state["value"])
+            )
             buffer.clear()
             last_flush = time.monotonic()
-            publish_segments(
-                meeting_id,
-                [_segment_to_dict(o, provisional) for o in objs],
-                progress=progress_state["value"],
-            )
 
         first = True
         for seg in transcribe_stream(wav_path, on_progress=on_progress):
@@ -135,30 +190,7 @@ def run_ingestion(audio_path: Path, meeting_id: str, db: Session) -> None:
         update_status(meeting_id, "transcribing", "Transcript complete. Identifying speakers…", progress=1.0)
 
         # ── 4. Diarize & re-label the persisted segments ─────────────────────
-        diar_turns = diarize(wav_path)
-        if diar_turns:
-            labelled = merge_transcript_with_diarization(raw_segments, diar_turns)
-            speaker_map: Dict[str, str] = {}
-            for label in {seg.speaker for seg in labelled}:
-                spk = crud.get_or_create_speaker(db, meeting_id, label)
-                speaker_map[label] = spk.id
-
-            for persisted_seg, lab in zip(persisted, labelled):
-                persisted_seg.speaker_id = speaker_map.get(lab.speaker, provisional.id)
-            db.commit()
-
-            # Drop the provisional speaker if diarization never used it.
-            if PROVISIONAL_SPEAKER not in speaker_map:
-                still_used = (
-                    db.query(TranscriptSegment)
-                    .filter(TranscriptSegment.speaker_id == provisional.id)
-                    .count()
-                )
-                if not still_used:
-                    db.delete(provisional)
-                    db.commit()
-
-            publish(meeting_id, {"type": "transcript_ready", "status": "transcribing"})
+        relabel_with_diarization(db, meeting_id, wav_path, raw_segments, persisted, provisional)
 
         # ── 5. Hand over to NLP ──────────────────────────────────────────────
         crud.update_meeting_status(db, meeting_id, "structuring")

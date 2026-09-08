@@ -61,6 +61,9 @@ def init_db() -> None:
 # Columns added after the first release.  ``create_all`` never alters existing
 # tables, so add them here for databases created by older versions.
 _NEW_COLUMNS = {
+    "meetings": [
+        ("source", "VARCHAR(20) DEFAULT 'upload'"),
+    ],
     "action_items": [
         ("due", "VARCHAR(100)"),
         ("evidence", "TEXT"),

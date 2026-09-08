@@ -63,6 +63,7 @@ class MeetingOut(BaseModel):
     status: str
     audio_path: Optional[str] = None
     summary_type: str = "balanced"
+    source: str = "upload"
 
 
 class MeetingDetail(MeetingOut):

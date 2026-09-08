@@ -12,6 +12,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import PublicLandingPage from './pages/PublicLandingPage.jsx';
 import HomePage from './pages/HomePage.jsx';
 import UploadPage from './pages/UploadPage.jsx';
+import LivePage from './pages/LivePage.jsx';
 import MeetingsPage from './pages/MeetingsPage.jsx';
 import MeetingDetailPage from './pages/MeetingDetailPage.jsx';
 import ProjectsPage from './pages/ProjectsPage.jsx';
@@ -71,6 +72,7 @@ function MainAppRoutes() {
 
       {/* ── Protected app routes ────────────────────────────────────────── */}
       <Route path="/upload"        element={<ProtectedRoute><AppShell><UploadPage /></AppShell></ProtectedRoute>} />
+      <Route path="/live"          element={<ProtectedRoute><AppShell><LivePage /></AppShell></ProtectedRoute>} />
       <Route path="/projects"      element={<ProtectedRoute><AppShell><ProjectsPage /></AppShell></ProtectedRoute>} />
       <Route path="/projects/:id"  element={<ProtectedRoute><AppShell><ProjectDetailPage /></AppShell></ProtectedRoute>} />
       <Route path="/meetings"      element={<ProtectedRoute><AppShell><MeetingsPage /></AppShell></ProtectedRoute>} />

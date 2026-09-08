@@ -27,7 +27,7 @@ The transcription is just the input layer. The actual product is:
 | **Phase 3** | Context store (SQLite + CRUD layer) | ✅ Built |
 | **Phase 4** | Recurring-topic detection (MinHash/LSH) | ✅ Built |
 | **Phase 5** | User authentication (local account) | ✅ Built |
-| **Phase 5.5** | Live transcript streaming + context-aware decision/to-do extraction | ✅ Built (see [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)) |
+| **Phase 5.5** | Live transcript streaming, context-aware decision/to-do extraction, live microphone recording | ✅ Built (see [docs/NEXT_STEPS.md](docs/NEXT_STEPS.md)) |
 | Phase 6 | Report/presentation generation | 🔲 Planned |
 | Phase 7 | Polish & testing | 🔲 Planned |
 
@@ -80,7 +80,7 @@ Dashboard → **http://localhost:5173**
 ## How You Use It
 
 1. **Register** a local account (your personal data, stored on your machine only).
-2. **Upload** a recording — any meeting, lecture, or call you attended.
+2. **Upload** a recording — any meeting, lecture, or call you attended — or **Record Live** from the microphone while the meeting happens.
 3. **Watch the transcript appear line by line** while CMIS is still transcribing; speaker labels update when diarization finishes, then decisions, action items and the summary are generated.
 4. **Browse** your personal context: topics discussed, action items you need to act on, decisions made.
 5. **Generate** a Minutes of Meeting document or summary on demand.
@@ -95,6 +95,8 @@ Dashboard → **http://localhost:5173**
 | `POST` | `/auth/register` | Create your local account |
 | `POST` | `/auth/login` | Log in, receive JWT token |
 | `POST` | `/meetings/upload` | Upload audio, start processing |
+| `POST` | `/meetings/live` | Create a meeting to be recorded live from the microphone |
+| `WS` | `/ws/live/{meeting_id}` | Stream 16 kHz mono int16 PCM frames into a live meeting (`{"type":"start"}` … audio … `{"type":"stop"}`) |
 | `GET` | `/meetings/` | List your meetings |
 | `GET` | `/meetings/{id}` | Meeting detail + status |
 | `GET` | `/meetings/{id}/transcript` | Full speaker-labelled transcript |
@@ -227,6 +229,12 @@ faster-whisper generator ──► every 3 segments / 1.5 s ──► SQLite ins
 * A client that connects late fetches what is already stored via `GET /meetings/{id}/transcript` and then receives the rest live.
 * Tune with `TRANSCRIPT_FLUSH_SEGMENTS` / `TRANSCRIPT_FLUSH_SECONDS`.
 * Speed knobs: `WHISPER_MODEL`, `WHISPER_BEAM_SIZE` (1 = fastest), `WHISPER_DEVICE=auto` (uses CUDA if available), `PRELOAD_MODELS=true` (models load at startup).
+
+## Recording live from the microphone
+
+The **Record Live** page captures the microphone in the browser, downsamples it to 16 kHz mono in an AudioWorklet and streams raw PCM frames to `WS /ws/live/{meeting_id}`. The backend cuts the audio at natural pauses (3–10 s chunks), transcribes each chunk with Whisper and publishes the lines on the normal status stream, so the transcript appears while people are still talking. Pressing **Stop** writes the WAV to `uploads/`, runs speaker diarization over the whole recording, re-labels the transcript, and runs the same decision / action-item / summary extraction as an upload.
+
+Tune with `LIVE_MIN_CHUNK_SECONDS`, `LIVE_MAX_CHUNK_SECONDS`, `LIVE_SILENCE_RMS` and `LIVE_SILENCE_SECONDS`. Browsers only expose the microphone on `http://localhost` or HTTPS.
 
 ## How decisions and to-dos are extracted
 

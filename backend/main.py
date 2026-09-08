@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from db.database import init_db
-from routers import auth, context, insights, meetings, projects, ws
+from routers import auth, context, insights, live, meetings, projects, ws
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
@@ -92,6 +92,7 @@ app.include_router(meetings.router)
 app.include_router(context.router)
 app.include_router(insights.router)
 app.include_router(ws.router)
+app.include_router(live.router)
 
 
 # ── Health check ──────────────────────────────────────────────────────────────

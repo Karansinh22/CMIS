@@ -117,6 +117,7 @@ class Meeting(Base):
     )  # queued | transcribing | structuring | done | error
     audio_path: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     summary_type: Mapped[str] = mapped_column(String(20), default="balanced")  # brief | balanced | comprehensive
+    source: Mapped[str] = mapped_column(String(20), default="upload")  # upload | live
 
     # Relationships
     project: Mapped[Optional["Project"]] = relationship("Project", back_populates="meetings")
