@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Upload, FolderKanban, CheckSquare, Mic,
+  Upload, FolderKanban, CheckSquare,
   ArrowRight, Cpu, Layers, Mic, Calendar, ChevronRight,
   Zap, ListOrdered
 } from 'lucide-react';
