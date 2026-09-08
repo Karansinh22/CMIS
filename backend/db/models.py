@@ -242,6 +242,9 @@ class Topic(Base):
     previous_topic_id: Mapped[Optional[str]] = mapped_column(
         String(36), nullable=True
     )
+    # Time span covered by the topic (seconds into the recording), for timelines
+    start_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    end_time: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
 
     context_entry: Mapped["ContextEntry"] = relationship(
         "ContextEntry", back_populates="topics"

@@ -130,6 +130,8 @@ class TopicBase(BaseModel):
     summary: Optional[str] = None
     is_recurring: bool = False
     previous_topic_id: Optional[str] = None
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
 
 
 class TopicCreate(TopicBase):

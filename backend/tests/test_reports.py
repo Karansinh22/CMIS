@@ -42,7 +42,7 @@ def test_generate_docx_and_download(client, db, tmp_path, monkeypatch):
     dl = client.get(f"/reports/{report['id']}/download")
     assert dl.status_code == 200
     xml = _zip_text(dl.content, "word/document.xml")
-    for needle in ("Minutes of Meeting", "Design Review", "Go with Postgres", "Better tooling",
+    for needle in ("MINUTES OF MEETING", "Design Review", "Go with Postgres", "Better tooling",
                    "Set up the staging database", "Karan", "by Thursday", "Database Choice", "Appendix"):
         assert needle in xml, needle
 

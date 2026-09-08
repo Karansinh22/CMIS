@@ -149,6 +149,19 @@ and the verbatim evidence sentence with its transcript position.
 
 ---
 
+### Generated documents
+
+Reports are built from the stored context, so they are instant and never re-process audio.
+
+| Document | Contents |
+|---|---|
+| **Minutes of Meeting (.docx)** | Cover block, meeting-at-a-glance metrics, agenda with a topic timeline chart, executive summary, discussion by topic (with the decisions and actions raised in each), decisions table with rationale and timestamp, action-item register with priority/owner charts, open questions and a proposed agenda for the next meeting, participation table and speaking-time chart, approval/sign-off block, transcript appendix. Header, footer and page numbers included. |
+| **Slide deck (.pptx)** | Title, agenda, at-a-glance tiles, executive summary, topic timeline, participation donut (native chart), one slide per topic, decisions, action-item charts and register with colour-coded priorities, open questions, next steps, closing. 16:9, editable in PowerPoint / Google Slides. |
+| **Markdown (.md)** | The same sections as the Word document with tables; suitable for wikis, email and version control. |
+| **Project report (.docx)** | Overall summary, meeting index, open action items across all meetings with charts, decisions by meeting. |
+
+Speaker labels are replaced by real names when participants introduce themselves ("Hi, this is Karan") or when you rename a speaker.
+
 ## Configuration
 
 All settings live in `backend/.env` (see `.env.example`). The ones that matter most:

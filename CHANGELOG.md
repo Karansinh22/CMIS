@@ -18,6 +18,11 @@ All notable changes to CMIS are documented here.
 - Reports tab, evidence quotes, due dates and confidence chips in the UI.
 - CI workflow (pytest + frontend lint/build), CONTRIBUTING, LICENSE, EditorConfig.
 
+- Professional report layouts: at-a-glance metrics, agenda + timeline chart, discussion by
+  topic, decisions with rationale and timestamps, action-item charts, open questions, next-meeting
+  agenda, participation chart, sign-off block (Word); native charts, KPI tiles, timeline and
+  per-topic slides (PowerPoint). Speaker names inferred from introductions are now persisted.
+
 ### Changed
 - Whisper defaults: greedy decoding, auto GPU, all CPU threads, model warm-up at startup,
   no 3-minute ffmpeg chunking.

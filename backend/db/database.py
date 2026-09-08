@@ -65,6 +65,10 @@ _NEW_COLUMNS = {
     "meetings": [
         ("source", "VARCHAR(20) DEFAULT 'upload'"),
     ],
+    "topics": [
+        ("start_time", "FLOAT"),
+        ("end_time", "FLOAT"),
+    ],
     "action_items": [
         ("due", "VARCHAR(100)"),
         ("evidence", "TEXT"),

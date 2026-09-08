@@ -50,6 +50,8 @@ _HIGH_PATTERNS = [
 _MEDIUM_PATTERNS = [
     # Upcoming week
     (re.compile(r"\b(next week|by (monday|tuesday)|end of (month|sprint)|upcoming (meeting|review|demo))\b", re.IGNORECASE), 2),
+    (re.compile(r"\b(by|before|until|till) (next |this )?(monday|tuesday|wednesday|thursday|friday|saturday|sunday|month|sprint|quarter|release|launch|demo|meeting|review)\b", re.IGNORECASE), 2),
+    (re.compile(r"\bby (next|the) \w+\b|\bwithin (a|one|two|three|\d+) (day|week)s?\b", re.IGNORECASE), 2),
     # Standard priority signals
     (re.compile(r"\b(important|medium priority|p2|priority two|moderate|due (date|by)|deadline)\b", re.IGNORECASE), 2),
     # Soft obligation

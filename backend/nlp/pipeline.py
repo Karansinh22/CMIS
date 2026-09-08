@@ -72,8 +72,17 @@ def run_nlp(meeting_id: str, db: Session) -> None:
             Utterance(index=i, speaker=lab, text=txt, start=s.start_time, end=s.end_time)
             for i, (s, lab, txt) in enumerate(zip(segments, speaker_labels, texts))
         ]
-        for label, name in infer_speaker_names(utterances).items():
+        inferred = infer_speaker_names(utterances)
+        for label, name in inferred.items():
             speaker_names.setdefault(label, name)
+        # Persist inferred names (never overwrite a name the user typed in)
+        changed = False
+        for s in {seg.speaker for seg in segments if seg.speaker}:
+            if s and not s.name and s.label in inferred:
+                s.name = inferred[s.label]
+                changed = True
+        if changed:
+            db.commit()
 
         # ── 2. Extraction (LLM if configured, otherwise local intent engine) ─
         update_status(meeting_id, "structuring", "Understanding decisions and action items…", progress=0.25)
@@ -132,10 +141,18 @@ def run_nlp(meeting_id: str, db: Session) -> None:
         # ── 3. Topic segmentation ────────────────────────────────────────────
         update_status(meeting_id, "structuring", "Segmenting topics…", progress=0.5)
         if llm_result is not None and llm_result.topics:
-            topics_list = [{"title": t.title, "summary": t.summary} for t in llm_result.topics]
+            topics_list = [{"title": t.title, "summary": t.summary, "start_time": None, "end_time": None}
+                           for t in llm_result.topics]
         else:
             topic_clusters = segment_into_topics(texts, exclude_terms=list(speaker_names.values()))
-            topics_list = [{"title": c.title, "summary": c.summary} for c in topic_clusters]
+            topics_list = []
+            for c in topic_clusters:
+                idxs = c.segment_indices or []
+                topics_list.append({
+                    "title": c.title, "summary": c.summary,
+                    "start_time": segments[idxs[0]].start_time if idxs else None,
+                    "end_time": segments[idxs[-1]].end_time if idxs else None,
+                })
 
         # ── 4. Create ContextEntry ───────────────────────────────────────────
         context_entry = crud.create_context_entry(db, meeting_id)
@@ -155,6 +172,7 @@ def run_nlp(meeting_id: str, db: Session) -> None:
                 TopicCreate(
                     context_id=context_id, title=t["title"], summary=t["summary"],
                     is_recurring=is_recurring, previous_topic_id=prev_id,
+                    start_time=t.get("start_time"), end_time=t.get("end_time"),
                 ),
                 minhash_signature=signature_to_json(topic_text),
             )

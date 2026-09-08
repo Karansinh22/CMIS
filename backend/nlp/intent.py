@@ -501,8 +501,12 @@ _TRIGGERS: List[Tuple[str, re.Pattern, float]] = [
         r"(?:just\s+|then\s+|all\s+|simply\s+|officially\s+|now\s+|definitely\s+)?"
         r"(?P<rest>" + _DECISION_PREDICATE + r"\b.*)$", re.IGNORECASE), 0.72),
     ("decision", re.compile(
-        _LEAD + r"(?:(?:so|then)\s+)?(?:(?:the )?(?:\w+ )?(?:is|are) (?:approved|signed off|green-?lit|greenlit|confirmed|"
-        r"a go|final|finalized|finalised|locked)|(?:going|moving) (?:ahead|forward) with|no longer (?:doing|going|pursuing|"
+        _LEAD + r"(?:(?:so|then)\s+)?(?P<subj>(?:the |our |this |that )?(?:\w+ ){1,4})(?:is|are|has been|have been) "
+        r"(?:now |officially |finally )?(?P<verdict>approved|agreed|signed off|green-?lit|greenlit|confirmed|a go|final|finalized|finalised|"
+        r"locked|locked in|settled|decided|done deal|off the table|cancelled|canceled|postponed|rejected)\b\s*(?:then|now)?(?P<rest>.*)$",
+        re.IGNORECASE), 0.75),
+    ("decision", re.compile(
+        _LEAD + r"(?:(?:so|then)\s+)?(?:(?:going|moving) (?:ahead|forward) with|no longer (?:doing|going|pursuing|"
         r"supporting|using)|not (?:doing|going ahead with|pursuing|going with|moving forward with)|"
         r"(?:consensus|final answer|final decision|verdict) (?:is|was))\s*(?P<rest>.*)$", re.IGNORECASE), 0.75),
     # requests ----------------------------------------------------------------
@@ -557,6 +561,10 @@ _TRIGGERS: List[Tuple[str, re.Pattern, float]] = [
         + _SOFT + r"(?P<rest>.+)$", re.IGNORECASE), 0.62),
     ("collective", re.compile(
         _LEAD + r"(?:let'?s|let us)\s+" + _SOFT + r"(?P<rest>.+)$", re.IGNORECASE), 0.55),
+    ("collective", re.compile(
+        _LEAD + r"(?:we|i|the team)\s+(?:still\s+|also\s+|urgently\s+)?(?P<obtain>need(?:s)?|require(?:s)?|will need|'ll need)\s+"
+        r"(?P<rest>(?:a |an |the |some |more |another )?(?!to\b|someone|somebody|you\b)\w+(?: \w+){0,3}\s+(?:from|for|before|by|on|of)\b.+)$",
+        re.IGNORECASE), 0.6),
     ("collective", re.compile(
         _LEAD + r"(?:(?:the )?next step(?:s)? (?:is|are|would be) to|(?:what|all) we need (?:to do )?(?:now )?is|"
         r"(?:the )?(?:first|next|only|last) thing (?:to do|we need to do|we should do|is to do) is(?: to)?|"
@@ -618,14 +626,14 @@ def analyse_sentence(raw: str, known_names: Sequence[str] = ()) -> SentenceAnaly
     is_done = bool(_DONE_RE.search(text))
     words = _tokens(text)
 
-    if len(words) < 2:
-        return SentenceAnalysis("general", 0.0, text, is_question=is_question)
-
-    # Agreement / disagreement / proposal markers are context signals -------
+    # Agreement / disagreement markers are context signals -------------------
     if _AGREEMENT_RE.match(text) and len(words) <= 8:
         return SentenceAnalysis("agreement", 0.6, text)
     if _DISAGREEMENT_RE.match(text) and len(words) <= 10:
         return SentenceAnalysis("disagreement", 0.6, text)
+
+    if len(words) < 2:
+        return SentenceAnalysis("general", 0.0, text, is_question=is_question)
 
     proposal = bool(_PROPOSAL_RE.match(text))
 
@@ -676,6 +684,16 @@ def analyse_sentence(raw: str, known_names: Sequence[str] = ()) -> SentenceAnaly
             due = _find_due(text)
             return SentenceAnalysis("open_item", max(0.0, min(1.0, conf)), _strip_terminal(desc), owner=None, due=due,
                                     is_question=is_question, is_conditional=is_conditional, is_hedged=is_hedged)
+
+        if intent == "decision" and m.groupdict().get("verdict"):
+            subj = (m.group("subj") or "").strip()
+            if is_question or neg_before or not subj or subj.lower().split()[0] in ("it", "that", "this", "what", "which"):
+                continue
+            desc = _capitalize(f"{subj} {'is' if not subj.lower().endswith('s') else 'are'} {m.group('verdict').lower()}")
+            tail = _strip_terminal(rest or "")
+            body, rationale = _split_rationale(desc + (f" {tail}" if tail else ""))
+            return SentenceAnalysis("decision", base, _capitalize(body), rationale=rationale, is_question=is_question,
+                                    is_conditional=is_conditional, is_hedged=is_hedged)
 
         if intent == "decision":
             if neg_before or is_question or not rest:
@@ -744,6 +762,8 @@ def analyse_sentence(raw: str, known_names: Sequence[str] = ()) -> SentenceAnaly
             ):
                 return SentenceAnalysis("general", 0.25, text)
 
+            if m.groupdict().get("obtain") and body:
+                body = "Obtain " + body[0].lower() + body[1:]
             vague = not body or bool(_VAGUE_OBJECT_RE.match(body))
             body_for_desc = "" if vague else body
             due = _find_due(text)
@@ -920,6 +940,8 @@ def extract(
             a = sents[j].analysis
             if a.intent in ("request", "collective", "proposal", "assignment", "open_item", "commitment") and a.description:
                 return sents[j], a
+            if a.intent == "decision" and a.description and a.confidence < min_confidence:
+                return sents[j], a
         return None
 
     for i, s in enumerate(sents):
@@ -935,7 +957,7 @@ def extract(
             ps, pa = prev
             if ps.utt.speaker == s.utt.speaker and len(speakers_in_meeting) > 1:
                 continue  # agreeing with yourself isn't a decision
-            if pa.intent in ("proposal", "collective") and pa.description:
+            if pa.intent in ("proposal", "collective", "decision") and pa.description:
                 body, rationale = _split_rationale(pa.description)
                 decisions.append(Decision(
                     description=_capitalize(body), rationale=rationale, confidence=0.75,

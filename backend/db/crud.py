@@ -144,6 +144,8 @@ def create_topic(db: Session, data: TopicCreate, minhash_signature: Optional[str
         is_recurring=data.is_recurring,
         previous_topic_id=data.previous_topic_id,
         minhash_signature=minhash_signature,
+        start_time=data.start_time,
+        end_time=data.end_time,
     )
     db.add(topic)
     db.commit()

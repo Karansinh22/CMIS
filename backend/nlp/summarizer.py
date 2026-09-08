@@ -54,9 +54,19 @@ def _sentence_split(text: str) -> List[str]:
     sentences = []
     for s in raw:
         s = s.strip()
-        if len(s.split()) >= 4:   # discard very short fragments
+        if len(s.split()) >= 4 and not _SMALLTALK_RE.search(s):   # discard fragments and greetings
             sentences.append(s)
     return sentences if sentences else [text]
+
+
+# Greetings, introductions and meeting-flow lines carry no content for a summary.
+_SMALLTALK_RE = re.compile(
+    r"^(?:hi|hello|hey|good (?:morning|afternoon|evening)|thanks|thank you|okay|ok|alright|so|right|great|cool)\b.{0,40}$|"
+    r"\b(?:this is \w+|my name is|\w+ here\b|let'?s get started|let'?s begin|let'?s move on|next topic|"
+    r"that'?s (?:everything|all|it) (?:for today|from me|for now)?|thanks everyone|thank you everyone|"
+    r"can you hear me|share my screen|see you (?:next|tomorrow)|have a (?:good|great|nice))",
+    re.IGNORECASE,
+)
 
 
 def _word_frequencies(tokens: List[str]) -> Dict[str, float]:

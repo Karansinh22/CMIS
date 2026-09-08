@@ -190,3 +190,21 @@ class TestSpeakerNames:
             ("SPEAKER_00", "Hi, this is Karan. I'll send the invoice tomorrow."),
         ))
         assert r.action_items[0].owner == "Karan"
+
+
+class TestShortAgreements:
+    def test_one_word_agreement_confirms_weak_proposal(self):
+        r = extract(_u(
+            ("Dev", "I think we should cap the AWS spend at twelve thousand a month."),
+            ("Priya", "Agreed."),
+        ))
+        assert [d.description for d in r.decisions] == ["Cap the AWS spend at twelve thousand a month"]
+
+    def test_subject_verdict_decision(self):
+        a = analyse_sentence("Okay, so the budget cap is agreed then.")
+        assert a.intent == "decision" and a.description == "The budget cap is agreed"
+
+    def test_need_object_from_someone_is_task(self):
+        a = analyse_sentence("We need approval from finance before we add any new instances.")
+        assert a.intent == "collective"
+        assert a.description.startswith("Obtain approval from finance")
