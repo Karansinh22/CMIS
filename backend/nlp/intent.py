@@ -179,6 +179,7 @@ _ACTION_VERBS = {
     "enroll", "enrol", "sign-up", "signup", "attend", "join", "host", "organise", "lead", "drive",
     "own", "manage", "oversee", "support", "help", "assist", "cover", "fill", "populate", "seed",
     "load", "wire", "hook", "connect", "ship", "bundle", "package", "version", "tag", "cut",
+    "obtain", "acquire", "secure", "request", "seek", "get", "arrange", "procure",
 }
 
 # "I'll <verb>" where the verb is in-meeting talk, not a piece of work.
