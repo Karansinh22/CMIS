@@ -43,3 +43,6 @@ Thumbs.db
 
 # ── Test artefacts ───────────────────────────────────────────────────────────
 backend/tests/tmp_uploads/
+*.db-shm
+*.db-wal
+*.db-journal
